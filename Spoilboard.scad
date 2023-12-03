@@ -27,13 +27,13 @@ SOFTWARE.
 
 
 renderBed = true; // Use for debug and visualisation, set to false before export
-renderSpoilboard = false; // set to true for export, set to false to validate spoilboard design
+renderSpoilboard = true; // set to true for export, set to false to validate spoilboard design
 centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
 markDrillHoles = false;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
-screwCountersunkDepth = 2;  // Set to 0 if don't want machined countersink. 
+screwCountersunkDepth = 4.5;  // Set to 0 if don't want machined countersink. 
 
 // Screw that mounts spoilboard to the bed:
-screwHeadWidth = 10;         // screw head diameter. If you want - add some tolerance
+screwHeadWidth = 11;         // screw head diameter. If you want - add some tolerance
 screwCountersunkAngle = 90; // 90 is default for metric screws. set to 0 if your screws are not countersunk and you want straight hole   
 
 validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
@@ -44,7 +44,7 @@ $fa=1;
 
 
 spoilboardMetricThread = 6; // mm
-holeDiameter = spoilboardMetricThread + 1; // allowing some room for 
+holeDiameter = spoilboardMetricThread + .5; // allowing some room for 
 
 //cnc bed dimensions 
 bedXdimension = 360;
@@ -54,7 +54,7 @@ bedYdimension = 300;
 spoilboardSheetXdimenstion = 355;
 spoilboardSheetYdimenstion = 280;
 spoilboardSheetThickness = 5.9;
-holeMaxDepth = spoilboardSheetThickness - 2; // if you don't want through holes, limit this number to protect your bed
+holeMaxDepth = spoilboardSheetThickness + 2; // if you don't want through holes, limit this number to protect your bed
 holeDefaultDepth = holeMaxDepth;
 
 holeMarkAngle = 90; // 0 for vertical holes
@@ -172,12 +172,15 @@ spoilboardHoles = [ for (elem = spoilboardHolesRaw) if(spoilboardHoleCheck(elem)
 
 module RenderHoles(array, depth){
     
-    counterDepth = screwCountersunkDepth;
-    countersunkOuterRadius = screwHeadWidth/2;
-    countersunkInnerRadius = holeDiameter/2;
-    coneDepth = screwCountersunkAngle>0?(countersunkOuterRadius - holeDiameter/2)/tan(screwCountersunkAngle/2):counterDepth;
-    assert(coneDepth <= counterDepth,"Countersink hole is not deep enough for this angle");
-    cylinderDepth = counterDepth - coneDepth;
+    if(screwCountersunkDepth>0){
+        counterDepth = screwCountersunkDepth;
+        countersunkOuterRadius = screwHeadWidth/2;
+        countersunkInnerRadius = holeDiameter/2;
+        coneDepth = screwCountersunkAngle>0?
+            (countersunkOuterRadius - holeDiameter/2)/tan(screwCountersunkAngle/2):counterDepth;
+        assert(coneDepth <= counterDepth,"Countersink hole is not deep enough for this angle");
+        cylinderDepth = counterDepth - coneDepth;
+    }
     
     holeMarkRealDepth = min(depth,holeMarkAngle>0?min(holeMarkDepth,holeMarkWidth/tan(holeMarkAngle/2)/2):holeMarkDepth);
     holeMarkRadius = (holeMarkRealDepth+cutoutdelta/2)*tan(holeMarkAngle/2);
