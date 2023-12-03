@@ -34,3 +34,5 @@ renders/3030-spoilboard-drill.stl - 3D model with only drill marks for all the h
 # Contributions
 If you find this model useful, and you have traced a hole pattern from a different cnc model, please consider sharing the new configuration back to the community.
 
+# Links
+Also available in Grabcad community: https://grabcad.com/library/parametric-spoilboard-and-pattern-for-genmitsu-sainsmart-3030-pro-cnc-1
