@@ -43,21 +43,27 @@ If you are maximizing spoilboard size, your CNC x/y range is likely not wide eno
 Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creative): 
 * Set turnModel = true , it will turn the model to make it easier to prepare in CAM
 * Set twoPassMilling = true, it will optimise the render for a two-pass milling
-* Mark two opposite coner holes on the board with a sharp object. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard"
-* Validate the disance between markings. It is important to get it right
-* Secure the board on the cnc bed in portrait orientation, you will have side holes available for stock clamps. Make sure to not clamp where some other hole is expected to be
+
+* Mark a corner hole (X,Y zero) on the board with a sharp object. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard"
+* Align and secure a 90 degree clamp on the cnc bed. It will serve as a reference for the process
+* Position the board in portrait orientation using clamp, secure it. Check that no mounting hardware intervenes with expected holes or mill head moving
 * Align X,Y zero on that hole mark, set Z zero on the bed level (positive Z is expected to look up from the bed)
 * In the CAM software make sure that model's zero is preserved (it should be on the first hole)
 * When preparing routes - make sure bit doesn't bump into clamps (obviously)
 
 * Run first pass, release the board
 * Finish the holes (drill if needed)
-* Flip the board, secure it using freshly made holes
-* Realign X,Y zero with the opposite corner
+* Turn the board 180 degrees, and secure it back the same way
+* With 90 degree clamp, you should not need to change zero position
+
 * Run the pass again
 
-TODO: make CNC mark the zero for the second pass
 
+If you don't have a 90 degree clamp to secure on the board, just make one! :)
+Altenratively, you can mark two opposize corners on the board, and reset zero on those markings between passes. You need to be accurate in your markings. Measure thrice!
+
+
+TODO: maybe make CNC mark the zero for the second pass
 */
 
 renderBed = true; // Use for debug and visualisation, set to false before export
