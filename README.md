@@ -1,4 +1,4 @@
-# Parametric OpenSCAD model for generating CNC spoilboards
+# Parametric OpenSCAD model for generating CNC spoilboards and Sainsmart Genmitsu 3030-Pro cnc bed grid pattern
 
 This file is for generating spoilboards for CNC that have flat beds with grids of holes instead of slots
 
@@ -10,18 +10,13 @@ DIY spoilboard is cheaper and can be tuned to your needs. You can:
 
 This design relies on original threaded holes on the CNC bed for mounting, it does not use threaded incerts in the  sheet. If you prefer threaded incerts, modify the code as you need.
 
-How to use:
-1) Configure holes and other parameters at the beginning of the file
-2) Export STL
-3) Use you preferred CAD software to create G-code
-4) Use your CNC to prepare the board
-
-Two options for how to do it:
+This model supports two manufactaruing options:
 * Make CNC do all the work
 * Use CNC to mark the grid, and then complete the job with a drill
 Either option works well, because through holes do not require absolute precision.
 
-Default values here are for Genmitsu 3030-Pro, but you can tweak it as you wish. Please, share grid patterns for other CNC mills.
+# How to use:
+Open Spoilboard.scad using OpenSCAD and read the comments in the file, you'll need to tune parameters and exportSTL for future use in your preferred CAD/CAM software
 
 # Available renders:
 If you want quick access to the STL files, and don't want to play with OpenSCAD, check out these renders.
@@ -31,7 +26,12 @@ renders/3030-cncbed.stl - 3D model of Sainsmart Genmitsu 3030-pro cnc mill
 renders/3030-spoilboard-through.stl - 3D model of a spoilboard with through holes and countersink
 renders/3030-spoilboard-drill.stl - 3D model with only drill marks for all the holes
 
-# Contributions
+# Supproted models
+This paramteric model will work to generate any pattern of holes (not continous slots).
+
+Included configuration:
+* Sainsmart Genmitsu 3030-Pro
+
 If you find this model useful, and you have traced a hole pattern from a different cnc model, please consider sharing the new configuration back to the community.
 
 # Links
