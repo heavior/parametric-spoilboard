@@ -4,7 +4,7 @@ For this file only:
 MIT License
 
 Copyright (c) 2023  Evgeny Balashov https://www.linkedin.com/in/balashovevgeny/
-Original source: https://github.com/heavior/parametric-spoilboard
+Original source and latest versions: https://github.com/heavior/parametric-spoilboard
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,26 +25,59 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/*
+# Parametric OpenSCAD model for generating CNC spoilboards and Sainsmart Genmitsu 3030-Pro cnc bed grid pattern
+
+Readme file with more details available here: https://github.com/heavior/parametric-spoilboard
+
+How to use:
+1) Configure holes and other parameters at the beginning of the file
+2) Export STL
+3) Use you preferred CAD software to create G-code
+4) Use your CNC to prepare the board
+
+Manufacturing:
+
+If you are maximizing spoilboard size, your CNC x/y range is likely not wide enough to make the model in one pass, and you will need two runs.
+
+Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creative): 
+* Set turnModel = true , it will turn the model to make it easier to prepare in CAM
+* Set twoPassMilling = true, it will optimise the render for a two-pass milling
+* Mark two opposite coner holes on the board with a sharp object. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard"
+* Validate the disance between markings. It is important to get it right
+* Secure the board on the cnc bed in portrait orientation, you will have side holes available for stock clamps. Make sure to not clamp where some other hole is expected to be
+* Align X,Y zero on that hole mark, set Z zero on the bed level (positive Z is expected to look up from the bed)
+* In the CAM software make sure that model's zero is preserved (it should be on the first hole)
+* When preparing routes - make sure bit doesn't bump into clamps (obviously)
+
+* Run first pass, release the board
+* Finish the holes (drill if needed)
+* Flip the board, secure it using freshly made holes
+* Realign X,Y zero with the opposite corner
+* Run the pass again
+
+TODO: make CNC mark the zero for the second pass
+
+*/
 
 renderBed = true; // Use for debug and visualisation, set to false before export
 renderSpoilboard = true; // set to true for export, set to false to validate spoilboard design
 centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
-markDrillHoles = false;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
-screwCountersunkDepth = 4.5;  // Set to 0 if don't want machined countersink. 
+turnModel = true; // Turn model 90 degrees for easier alignment. See instruction to see how it works
+twoPassMilling = true; // render only half of the model (split by X) for two-step marking process
+
+markDrillHoles = true;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
 
 // Screw that mounts spoilboard to the bed:
+screwCountersunkDepth = 4.5; // Set to 0 if don't want machined countersink or pocket at all
 screwHeadWidth = 11;         // screw head diameter. If you want - add some tolerance
-screwCountersunkAngle = 90; // 90 is default for metric screws. set to 0 if your screws are not countersunk and you want straight hole   
+screwCountersunkAngle = 90;  // 90 is default for metric screws. set to 0 for straight pocket   
 
 validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
-                                 // change this value only if you understand what you are doing, the countersunk will probably redner not the way you want
-                                 
-$fs=.2;
-$fa=1;
-
-
+// change this value only if you understand what you are doing, the countersunk will probably render not the way you expectwant
+        
 spoilboardMetricThread = 6; // mm
-holeDiameter = spoilboardMetricThread + .5; // allowing some room for 
+holeDiameter = spoilboardMetricThread + .5; // allowing some wiggle room 
 
 //cnc bed dimensions 
 bedXdimension = 360;
@@ -52,6 +85,7 @@ bedYdimension = 300;
 
 // it's ok to use smaller spoilboard sheet, the pattern will be centered
 spoilboardSheetXdimenstion = 355;
+// Mark the zero on spoilboard - X: 17.5 Y: 10
 spoilboardSheetYdimenstion = 280;
 spoilboardSheetThickness = 5.9;
 holeMaxDepth = spoilboardSheetThickness + 2; // if you don't want through holes, limit this number to protect your bed
@@ -59,7 +93,7 @@ holeDefaultDepth = holeMaxDepth;
 
 holeMarkAngle = 90; // 0 for vertical holes
 holeMarkWidth = 2;
-holeMarkDepth = 2;
+holeMarkDepth = 4.5;
 /*
     Here is how to use drill holes:
     1) set markDrillHoles = true
@@ -75,8 +109,11 @@ holeMarkDepth = 2;
                     
 spoilboardEdgeKeepOut = 6; // How close can a hole get to the edge of spoilboard for integrity (counterink can overflow into that zone)
 centerSpoilboard = true;   // set to false if you want to move spoilboard around the board
-spoilboardCornerX = 0;     // if centerSpoilboard = false, this defines the corner of spoilboard relaive to the bed
-spoilboardCornerY = 0;     // if centerSpoilboard = false, this defines the corner of spoilboard relaive to the bed
+// if centerSpoilboard=false, change next two variables as needed:
+spoilboardCornerX = (bedXdimension - spoilboardSheetXdimenstion)/2;     
+spoilboardCornerY = (bedYdimension - spoilboardSheetYdimenstion)/2;
+//Spoilboard corner on the bed - X: 2.5 Y: 10
+
 
 // cnc beds have irregular hole patterns, but tend to be symmetrical. 
 // This allows us to set hole pattern only for one corner, and script will calculate 
@@ -125,6 +162,16 @@ cutoutdelta=1;// eny positive number shouldwork
 supportOversizeSpoilboard = false; // this checks that Spoilboard sheet is smaller than the board. 
                                    // change this value only if you understand what you are doing
 
+// OpenSCAD precision settings for circles
+// $fs is a surface size. mark holes will have a problem with this value
+// $fa is angle
+// $fn is number for each circle
+// lower values will create more surfaces in STL and higher precision, but it can drive your CAD software crazy with too many triangles
+/*
+$fs = .2;
+$fa = 1;
+*/
+$fn = 20;
 
 if(!supportOversizeSpoilboard){
     assert(bedXdimension>=spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"); 
@@ -159,7 +206,7 @@ bedHoles = [
 spoilboardXShift = centerSpoilboard?(bedXdimension - spoilboardSheetXdimenstion)/2:spoilboardCornerX;
 spoilboardYShift = centerSpoilboard?(bedYdimension - spoilboardSheetYdimenstion)/2:spoilboardCornerY;
 spoilboardHolesRaw = [ for (elem = bedHoles) [elem[0] - spoilboardXShift,elem[1] - spoilboardYShift, elem[2]]];
-
+    
 realKeepout = spoilboardEdgeKeepOut + holeDiameter/2;
 function spoilboardHoleCheck(hole) = 
     hole[0] >= realKeepout 
@@ -172,15 +219,17 @@ spoilboardHoles = [ for (elem = spoilboardHolesRaw) if(spoilboardHoleCheck(elem)
 
 module RenderHoles(array, depth){
     
+    counterDepth = screwCountersunkDepth;
+    countersunkOuterRadius = screwHeadWidth/2;
+    countersunkInnerRadius = holeDiameter/2;
+    coneDepth = screwCountersunkAngle>0?
+        (countersunkOuterRadius - holeDiameter/2)/tan(screwCountersunkAngle/2):counterDepth;
+    
     if(screwCountersunkDepth>0){
-        counterDepth = screwCountersunkDepth;
-        countersunkOuterRadius = screwHeadWidth/2;
-        countersunkInnerRadius = holeDiameter/2;
-        coneDepth = screwCountersunkAngle>0?
-            (countersunkOuterRadius - holeDiameter/2)/tan(screwCountersunkAngle/2):counterDepth;
         assert(coneDepth <= counterDepth,"Countersink hole is not deep enough for this angle");
-        cylinderDepth = counterDepth - coneDepth;
     }
+    
+    cylinderDepth = counterDepth - coneDepth;
     
     holeMarkRealDepth = min(depth,holeMarkAngle>0?min(holeMarkDepth,holeMarkWidth/tan(holeMarkAngle/2)/2):holeMarkDepth);
     holeMarkRadius = (holeMarkRealDepth+cutoutdelta/2)*tan(holeMarkAngle/2);
@@ -229,25 +278,30 @@ module RenderBed(){
 
 module RenderSheet(){
     difference(){
-        cube([spoilboardSheetXdimenstion,spoilboardSheetYdimenstion,spoilboardSheetThickness]);
+        cube([twoPassMilling?spoilboardSheetXdimenstion/2:spoilboardSheetXdimenstion,spoilboardSheetYdimenstion,spoilboardSheetThickness]);
         translate([0,0,spoilboardSheetThickness])
             RenderHoles(spoilboardHoles,min(holeMaxDepth,spoilboardSheetThickness+cutoutdelta));
     }
 }
 
 
+echo(str("Mark the zero on spoilboard - X: ",spoilboardHoles[0][0]," Y: ",spoilboardHoles[0][1]));
+
+echo(str("Spoilboard corner on the bed - X: ",spoilboardXShift," Y: ",spoilboardYShift));
+
 centerX = centerAroundFirstSpoilboardHole? spoilboardHoles[0][0] + spoilboardXShift:0;
 centerY = centerAroundFirstSpoilboardHole? spoilboardHoles[0][1] + spoilboardYShift:0;
 
-translate([-centerX,-centerY,0]){    
-    if(renderBed){
-        color("gray")
-        translate([0,0,-spoilboardSheetThickness])
-            RenderBed();
-    }
-    if(renderSpoilboard){
-        translate([spoilboardXShift,spoilboardYShift,0]){
-            RenderSheet();   
+rotate([0,0,turnModel?90:0]) 
+    translate([-centerX,(turnModel?-bedYdimension+centerY:-centerY),0]){    
+        if(renderBed){
+            color("gray")
+            translate([0,0,-spoilboardSheetThickness])
+                RenderBed();
+        }
+        if(renderSpoilboard){
+            translate([spoilboardXShift,spoilboardYShift,0]){
+                RenderSheet();   
+            }
         }
     }
-}
