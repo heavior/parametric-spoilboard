@@ -52,11 +52,11 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 * When preparing routes - make sure bit doesn't bump into clamps (obviously)
 
 * Run first pass, release the board
-* Finish the holes (drill if needed)
 * Turn the board 180 degrees, and secure it back the same way
 * With 90 degree clamp, you should not need to change zero position
-
 * Run the pass again
+
+* If you were not using through holes, finish the holes with a drill slightly thicker than the threads on the bed.
 
 
 If you don't have a 90 degree clamp to secure on the board, just make one! :)
@@ -66,7 +66,7 @@ Altenratively, you can mark two opposize corners on the board, and reset zero on
 TODO: maybe make CNC mark the zero for the second pass
 */
 
-renderBed = true; // Use for debug and visualisation, set to false before export
+renderBed = false; // Use for debug and visualisation, set to false before export
 renderSpoilboard = true; // set to true for export, set to false to validate spoilboard design
 centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
 turnModel = true; // Turn model 90 degrees for easier alignment. See instruction to see how it works
@@ -75,8 +75,8 @@ twoPassMilling = true; // render only half of the model (split by X) for two-ste
 markDrillHoles = true;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
 
 // Screw that mounts spoilboard to the bed:
-screwCountersunkDepth = 4.5; // Set to 0 if don't want machined countersink or pocket at all
-screwHeadWidth = 11;         // screw head diameter. If you want - add some tolerance
+screwCountersunkDepth = 3.5; // Set to 0 if don't want machined countersink or pocket at all
+screwHeadWidth = 12;         // screw head diameter. If you want - add some tolerance
 screwCountersunkAngle = 90;  // 90 is default for metric screws. set to 0 for straight pocket   
 
 validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
@@ -97,7 +97,9 @@ spoilboardSheetThickness = 5.9;
 holeMaxDepth = spoilboardSheetThickness + 2; // if you don't want through holes, limit this number to protect your bed
 holeDefaultDepth = holeMaxDepth;
 
-holeMarkAngle = 90; // 0 for vertical holes
+holeMarkAngle = 90; // 0 for vertical holes. 
+                    // Match to the mill bit tool you want to use, or to the drill bit tip.
+                    // The most common included angles for drills are 118° and 135° (for hardened steel).
 holeMarkWidth = 2;
 holeMarkDepth = 4.5;
 /*
