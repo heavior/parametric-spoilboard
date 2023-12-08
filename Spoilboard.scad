@@ -63,6 +63,19 @@ If you don't have a 90 degree clamp to secure on the board, just make one! :)
 Altenratively, you can mark two opposize corners on the board, and reset zero on those markings between passes. You need to be accurate in your markings. Measure thrice!
 
 
+
+Outlining path in Autodesk Fusion if you are using drill marks:
+# import STL as mesh
+# Modify -> Convert mesh
+# Manufacture: 
+# For tool, set non-zero tip size
+# Create path for champher: 2D pocket
+## select inner large contours as Geometry
+## select outer contours as Stock Contours
+# path for drill marks: drill
+## select centers of each mark including champhers as points
+## order points by X
+
 TODO: maybe make CNC mark the zero for the second pass
 */
 
