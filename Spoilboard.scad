@@ -70,9 +70,11 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 # Modify -> Convert mesh
 # Manufacture: 
 # For tool, set non-zero tip size
+
 # Create path for chamfer: 2D pocket
 ## select inner large contours as Geometry
 ## select outer contours as Stock Contours
+
 # path for drill marks: drill
 ## select centers of each mark including chamfers as points
 ## order points by X
@@ -91,6 +93,16 @@ twoPassMilling = true; // render only half of the model (split by X) for two-ste
 markDrillHoles = false;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
 zeroZonSpoilboardSurface = true;  // if set to false, the Z zero will be set on the milling bed
 
+$fn = 8; // circles are rendered as regular n-gons, with n=$fn
+         // lower value makes it easier to work in CAM software for post processing
+         // higher value improves precision
+
+compensateForCircularPrecision = true;  // when using low $fn, this might be important:
+    // Since circles are rendered as n-gons, their effective size is smaller than expected. This compensates for that
+compensateRadiusCoefficient = compensateForCircularPrecision?1/cos(180/$fn):1;
+
+
+
 // Screw that mounts spoilboard to the bed:
 screwCountersunkDepth = 3.5; // Set to 0 if don't want machined countersink or pocket at all
 screwHeadWidth = 12;         // screw head diameter. If you want - add some tolerance
@@ -100,7 +112,7 @@ validateCountersunkDepth = true; // this checks that there is enough depth for t
 // change this value only if you understand what you are doing, the countersunk will probably render not the way you expectwant
         
 spoilboardMetricThread = 6; // mm
-holeDiameter = spoilboardMetricThread + 2; // allowing some wiggle room 
+holeDiameter = (spoilboardMetricThread + 2); // allowing some wiggle room 
 chamferHolesDepth = .5; // chamfer each hole to this depth. set to 0 to skip
 chamferHolesAngle = screwCountersunkAngle; 
 
@@ -190,17 +202,6 @@ cutoutdelta=1;// eny positive number shouldwork
 supportOversizeSpoilboard = false; // this checks that Spoilboard sheet is smaller than the board. 
                                    // change this value only if you understand what you are doing
 
-// OpenSCAD precision settings for circles
-// $fs is a surface size. mark holes will have a problem with this value
-// $fa is angle
-// $fn is number for each circle
-// lower values will create more surfaces in STL and higher precision, but it can drive your CAD software crazy with too many triangles
-/*
-$fs = .2;
-$fa = 1;
-*/
-$fn = 40;
-
 if(!supportOversizeSpoilboard){
     assert(bedXdimension>=spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"); 
     assert(bedYdimension>=spoilboardSheetYdimenstion, "spoilboard is too long for Y axis");
@@ -244,6 +245,21 @@ function spoilboardHoleCheck(hole) =
 spoilboardHoles = [ for (elem = spoilboardHolesRaw) if(spoilboardHoleCheck(elem)) elem]; // remove holes that are too close to the edge
     
 
+module compensateCylinder(){
+    
+    // cylinder(h = height, r1 = BottomRadius, r2 = TopRadius, center = true/false);
+    //  cylinder(h=15, d1=20, d2=0, center=true);
+    /*
+    equivalent scripts
+ cylinder(h=20, r=10, center=true);
+ cylinder(  20,   10, 10,true);
+ cylinder(  20, d=20, center=true);
+ cylinder(  20,r1=10, d2=20, center=true);
+ cylinder(  20,r1=10, d2=2*10, center=true);
+    */
+    
+    
+}
 
 module RenderHoles(array, depth){
     
@@ -270,35 +286,35 @@ module RenderHoles(array, depth){
             
             if(markDrillHoles){ // render drill marks
                 translate([0,0,-holeMarkRealDepth])
-                    cylinder(r1 = 0, r2 = holeMarkRadius, h = holeMarkRealDepth+cutoutdelta/2);
+                    cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficient, h = holeMarkRealDepth+cutoutdelta/2);
                 
             }else{  // render holes
                 translate([0,0,-depth])
-                    cylinder(d=holeDiameter, h = depth+cutoutdelta/2);
+                    cylinder(d=holeDiameter*compensateRadiusCoefficient, h = depth+cutoutdelta/2);
                 
                 
                 if(!hole[2] && chamferHolesDepth>0){ // chamfer holes
                     
                     translate([0,0,-chamferHolesDepth])
-                        cylinder(r1=holeDiameter/2, r2=chamferOuterRadius, h = chamferHolesDepth+cutoutdelta/2);
+                        cylinder(r1=holeDiameter/2*compensateRadiusCoefficient, r2=chamferOuterRadius*compensateRadiusCoefficient, h = chamferHolesDepth+cutoutdelta/2);
                 }
 
             }
             
             if(hole[2] && screwCountersunkDepth>0){ //render countersinks
                 translate([0,0,-counterDepth])
-                    cylinder(r1 = countersunkInnerRadius, 
-                             r2 = countersunkOuterRadius, 
+                    cylinder(r1 = countersunkInnerRadius*compensateRadiusCoefficient, 
+                             r2 = countersunkOuterRadius*compensateRadiusCoefficient, 
                              h = coneDepth*1.0001);
                 
                 if(cylinderDepth>0){
                     translate([0,0,-cylinderDepth])
-                        cylinder(r=countersunkOuterRadius, h = cylinderDepth+cutoutdelta/2);
+                        cylinder(r=countersunkOuterRadius*compensateRadiusCoefficient, h = cylinderDepth+cutoutdelta/2);
                 }
                 
                 if(markDrillHoles){
                     translate([0,0,max(-counterDepth-holeMarkRealDepth,-depth)]) // don't sink too deep
-                        cylinder(r1 = 0, r2 = holeMarkRadius, h = holeMarkRealDepth+cutoutdelta/2);
+                        cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficient, h = holeMarkRealDepth+cutoutdelta/2);
                 }
             }
         }
@@ -310,7 +326,7 @@ module RenderBed(){
         cube([bedXdimension,bedYdimension,spoilboardSheetThickness]);
          for(hole = bedHoles){
             translate([hole[0],hole[1],-cutoutdelta/2])
-                cylinder(d=spoilboardMetricThread, h = spoilboardSheetThickness+cutoutdelta);
+                cylinder(d=spoilboardMetricThread*compensateRadiusCoefficient, h = spoilboardSheetThickness+cutoutdelta);
         }
     }
 }
