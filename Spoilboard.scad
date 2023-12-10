@@ -81,6 +81,7 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 
 Think: maybe make CNC mark the zero for the second pass
 TODO: fix hole pattern, it doesn't really fit!
+TODO: imrpove drill holes marking - make it deeper
 
 */
 
@@ -90,13 +91,13 @@ centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
 turnModel = true; // Turn model 90 degrees for easier alignment. See instruction to see how it works
 twoPassMilling = true; // render only half of the model (split by X) for two-step marking process
 
-markDrillHoles = false;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
+markDrillHoles = true;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
 zeroZonSpoilboardSurface = true;  // if set to false, the Z zero will be set on the milling bed
 
-$fn = 8; // circles are rendered as regular n-gons, with n=$fn
+$fn = 4; // circles are rendered as regular n-gons, with n=$fn
          // lower value makes it easier to work in CAM software for post processing
          // higher value improves precision
-
+         
 compensateForCircularPrecision = true;  // when using low $fn, this might be important:
     // Since circles are rendered as n-gons, their effective size is smaller than expected. This compensates for that
 compensateRadiusCoefficient = compensateForCircularPrecision?1/cos(180/$fn):1;
@@ -112,7 +113,7 @@ validateCountersunkDepth = true; // this checks that there is enough depth for t
 // change this value only if you understand what you are doing, the countersunk will probably render not the way you expectwant
         
 spoilboardMetricThread = 6; // mm
-holeDiameter = (spoilboardMetricThread + 2); // allowing some wiggle room 
+holeDiameter = spoilboardMetricThread + 1; // allowing some wiggle room 
 chamferHolesDepth = .5; // chamfer each hole to this depth. set to 0 to skip
 chamferHolesAngle = screwCountersunkAngle; 
 
@@ -132,7 +133,7 @@ holeDefaultDepth = holeMaxDepth;
 holeMarkAngle = 90; // 0 for vertical holes. 
                     // Match to the mill bit tool you want to use, or to the drill bit tip.
                     // The most common included angles for drills are 118° and 135° (for hardened steel).
-holeMarkWidth = 2;
+holeMarkWidth = 3;  // match to the drill bit size
 holeMarkDepth = 4.5;
 /*
     Here is how to use drill holes:
