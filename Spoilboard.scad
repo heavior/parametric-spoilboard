@@ -44,10 +44,11 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 * Set turnModel = true , it will turn the model to make it easier to prepare in CAM
 * Set twoPassMilling = true, it will optimise the render for a two-pass milling
 
-* Mark a corner hole (X,Y zero) on the board with a sharp object. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard"
+* Mark a corner hole (X,Y zero) on the board. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard". This is important to get it right, as any error will double during production
 * Align and secure a 90 degree clamp on the cnc bed. It will serve as a reference for the process
 * Position the board in portrait orientation using clamp, secure it. Check that no mounting hardware intervenes with expected holes or mill head moving
-* Align X,Y zero on that hole mark, set Z zero on the bed level (positive Z is expected to look up from the bed)
+* Align X,Y zero on that hole mark
+* Set Z zero on the board top (controlled bty zeroZonSpoilboardSurface parameter)
 * In the CAM software make sure that model's zero is preserved (it should be on the first hole)
 * When preparing routes - make sure bit doesn't bump into clamps (obviously)
 
@@ -69,14 +70,16 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 # Modify -> Convert mesh
 # Manufacture: 
 # For tool, set non-zero tip size
-# Create path for champher: 2D pocket
+# Create path for chamfer: 2D pocket
 ## select inner large contours as Geometry
 ## select outer contours as Stock Contours
 # path for drill marks: drill
-## select centers of each mark including champhers as points
+## select centers of each mark including chamfers as points
 ## order points by X
 
-TODO: maybe make CNC mark the zero for the second pass
+Think: maybe make CNC mark the zero for the second pass
+TODO: fix hole pattern, it doesn't really fit!
+
 */
 
 renderBed = false; // Use for debug and visualisation, set to false before export
@@ -85,7 +88,8 @@ centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
 turnModel = true; // Turn model 90 degrees for easier alignment. See instruction to see how it works
 twoPassMilling = true; // render only half of the model (split by X) for two-step marking process
 
-markDrillHoles = true;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
+markDrillHoles = false;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
+zeroZonSpoilboardSurface = true;  // if set to false, the Z zero will be set on the milling bed
 
 // Screw that mounts spoilboard to the bed:
 screwCountersunkDepth = 3.5; // Set to 0 if don't want machined countersink or pocket at all
@@ -96,16 +100,19 @@ validateCountersunkDepth = true; // this checks that there is enough depth for t
 // change this value only if you understand what you are doing, the countersunk will probably render not the way you expectwant
         
 spoilboardMetricThread = 6; // mm
-holeDiameter = spoilboardMetricThread + .5; // allowing some wiggle room 
+holeDiameter = spoilboardMetricThread + 2; // allowing some wiggle room 
+chamferHolesDepth = .5; // chamfer each hole to this depth. set to 0 to skip
+chamferHolesAngle = screwCountersunkAngle; 
 
-//cnc bed dimensions 
+//cnc bed dimensions
 bedXdimension = 360;
 bedYdimension = 300;
 
 // it's ok to use smaller spoilboard sheet, the pattern will be centered
 spoilboardSheetXdimenstion = 355;
-// Mark the zero on spoilboard - X: 17.5 Y: 10
 spoilboardSheetYdimenstion = 280;
+// Mark the zero on spoilboard - X: 17.5 Y: 10
+
 spoilboardSheetThickness = 5.9;
 holeMaxDepth = spoilboardSheetThickness + 2; // if you don't want through holes, limit this number to protect your bed
 holeDefaultDepth = holeMaxDepth;
@@ -192,7 +199,7 @@ supportOversizeSpoilboard = false; // this checks that Spoilboard sheet is small
 $fs = .2;
 $fa = 1;
 */
-$fn = 20;
+$fn = 40;
 
 if(!supportOversizeSpoilboard){
     assert(bedXdimension>=spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"); 
@@ -243,6 +250,9 @@ module RenderHoles(array, depth){
     counterDepth = screwCountersunkDepth;
     countersunkOuterRadius = screwHeadWidth/2;
     countersunkInnerRadius = holeDiameter/2;
+    
+    chamferOuterRadius = holeDiameter/2 + chamferHolesDepth*tan(chamferHolesAngle/2);
+                    
     coneDepth = screwCountersunkAngle>0?
         (countersunkOuterRadius - holeDiameter/2)/tan(screwCountersunkAngle/2):counterDepth;
     
@@ -265,6 +275,14 @@ module RenderHoles(array, depth){
             }else{  // render holes
                 translate([0,0,-depth])
                     cylinder(d=holeDiameter, h = depth+cutoutdelta/2);
+                
+                
+                if(!hole[2] && chamferHolesDepth>0){ // chamfer holes
+                    
+                    translate([0,0,-chamferHolesDepth])
+                        cylinder(r1=holeDiameter/2, r2=chamferOuterRadius, h = chamferHolesDepth+cutoutdelta/2);
+                }
+
             }
             
             if(hole[2] && screwCountersunkDepth>0){ //render countersinks
@@ -307,14 +325,13 @@ module RenderSheet(){
 
 
 echo(str("Mark the zero on spoilboard - X: ",spoilboardHoles[0][0]," Y: ",spoilboardHoles[0][1]));
-
 echo(str("Spoilboard corner on the bed - X: ",spoilboardXShift," Y: ",spoilboardYShift));
 
 centerX = centerAroundFirstSpoilboardHole? spoilboardHoles[0][0] + spoilboardXShift:0;
 centerY = centerAroundFirstSpoilboardHole? spoilboardHoles[0][1] + spoilboardYShift:0;
 
 rotate([0,0,turnModel?90:0]) 
-    translate([-centerX,(turnModel?-bedYdimension+centerY:-centerY),0]){    
+    translate([-centerX,(turnModel?-bedYdimension+centerY:-centerY),zeroZonSpoilboardSurface?-spoilboardSheetThickness:0]){    
         if(renderBed){
             color("gray")
             translate([0,0,-spoilboardSheetThickness])
