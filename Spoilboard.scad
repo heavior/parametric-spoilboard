@@ -81,7 +81,7 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 
 Think: maybe make CNC mark the zero for the second pass
 
-TODO: optimise milling paths for cone 
+TODO: support flat end mills
 
 */
 
@@ -110,7 +110,7 @@ TODO: optimise milling paths for cone
     $fn =             publishToCommunity ? 36:36; // circles are rendered as regular n-gons, with n=$fn
                   // lower value makes it easier to work in CAM software for post processing
                   // higher value improves precision
-    drillingFn = 6;    // special value of fn for drilling only. To mark drill job in CAM, you only need a center point
+    drillingFn = optimiseForDrilling?6:$fn;    // special value of fn for drilling only. To mark drill job in CAM, you only need a center point
 
     zeroZonSpoilboardSurface = true;  // if set to false, the Z zero will be set on the milling bed
     compensateForCircularPrecision = true;  // when using low $fn, this might be important:
@@ -138,8 +138,8 @@ TODO: optimise milling paths for cone
     validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
     // change this value only if you understand what you are doing, the countersunk will probably render not the way you expect
 
-    drillBitPointAngle = 90; // 0 for vertical holes. 
-                        // Match to the mill bit tool you want to use, or to the drill bit tip.
+    drillBitPointAngle = 90; // Match to the mill bit tool you want to use, or to the drill bit tip.
+                        // flat end mills are not supported
                         // The most common included angles for drills are 118° and 135° (for hardened steel).
                         // You could use a 90-dedgree V-groove bit
     drillBitThickness = 1/4 * 25.4; // Drill bit thickness
@@ -184,7 +184,6 @@ TODO: optimise milling paths for cone
     //row 7
         [70,bedYdimension/2],
         [110,bedYdimension/2],
-
     ];
 
 // 4. Positioning and clearances (likely don't need to change)
@@ -200,17 +199,16 @@ TODO: optimise milling paths for cone
     chamferHolesDepth = .5; // chamfer each hole to this depth. set to 0 to skip
     chamferHolesAngle = drillBitPointAngle; // use the 
 
-    holeDiameter = bedMetricThread + 1; // allowing some wiggle room 
+    holeDiameter = bedMetricThread + 1; // allowing some wiggle room. ignored when optimised for drilling
     throughHoleToolClearance = .5; // how deep we want the tool to go under the holes to ensure clean bottom cut
     cncBedClearance = 1; // protection parameter - how close do we want to get to the cnc bed to not ruin it
 
     spoilboardEdgeKeepOut = 6; // How close can a hole get to the edge of spoilboard for integrity 
                            // (counterink can overflow into that zone)
 
-
 // End of parameters section
 
-throughHoleDrillTipClearance = optimiseForDrilling? drillBitThickness/2/tan(drillBitPointAngle/2):0;
+throughHoleDrillTipClearance = (optimiseForDrilling||optimiseForMilling)? drillBitThickness/2/tan(drillBitPointAngle/2):0;
 throughHoleStockClearance = (ensureThroughHoles?1:0)*(throughHoleToolClearance + throughHoleDrillTipClearance);
 
 additionalStock = throughHoleStockClearance + (ensureThroughHoles?cncBedClearance:0);
@@ -221,7 +219,7 @@ if(additionalStock>0){
 spoilboardSheetThickness = stockThickness + additionalStock;
 
 drillingDepth = ensureThroughHoles ? spoilboardSheetThickness:limitDrillingDepth;
-holeMaxDepth = ensureThroughHoles ? spoilboardSheetThickness:stockThickness - cncBedClearance; 
+holeMaxDepth = (ensureThroughHoles ? spoilboardSheetThickness:stockThickness) - cncBedClearance; 
 
 compensateRadiusCoefficient = compensateForCircularPrecision?1/cos(180/$fn):1;
 compensateRadiusCoefficientMark = compensateForCircularPrecision?1/cos(180/drillingFn):1;
@@ -230,6 +228,9 @@ compensateRadiusCoefficientMark = compensateForCircularPrecision?1/cos(180/drill
 cutoutdelta=.1;// eny positive number should work
 supportOversizeSpoilboard = false; // this checks that Spoilboard sheet is smaller than the board. 
                                    // change this value only if you understand what you are doing
+
+
+assert(!(optimiseForDrilling&&optimizeForMilling),"Can't optimise for drilling and milling at the same time");
 
 if(!supportOversizeSpoilboard){
     assert(bedXdimension>=spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"); 
@@ -266,6 +267,7 @@ spoilboardYShift = centerSpoilboard?(bedYdimension - spoilboardSheetYdimenstion)
 spoilboardHolesRaw = [ for (elem = bedHoles) [elem[0] - spoilboardXShift,elem[1] - spoilboardYShift, elem[2]]];
     
 realKeepout = spoilboardEdgeKeepOut + holeDiameter/2;
+
 function spoilboardHoleCheck(hole) = 
     hole[0] >= realKeepout 
     && hole[1] >= realKeepout 
@@ -273,6 +275,44 @@ function spoilboardHoleCheck(hole) =
     && hole[1] <= spoilboardSheetYdimenstion - realKeepout;    
 spoilboardHoles = [ for (elem = spoilboardHolesRaw) if(spoilboardHoleCheck(elem)) elem]; // remove holes that are too close to the edge
     
+
+module drillingHole(maxDepth){
+    // cylinder ending with a cone, summing together up to drillingDepth
+    
+    // optimise for milling - ensure there is a contour for the tool tip to follow easily
+    // consider 1/4 and 1/8 width for the tool
+    
+    // break down cones to allow one path by the tool
+    // problem: 1/4 inch tool might be too bif for the chamfer
+    // problem: openSCAD might weld cones together. Consider minor adjustment
+                
+    
+    drillingDiameter = optimiseForDrilling ? drillBitThickness: holeDiameter;
+    drillingRadius = drillingDiameter/2;
+    
+    drillingTipRadius = (drillingDiameter-drillBitThickness)/2; // will be 0 if optimised for drilling
+    
+    // drillingDepth calculated before
+    
+    drillingTipDepth = drillBitThickness/tan(drillBitPointAngle/2)/2;
+    
+    echo("depts", drillingDepth, drillingTipDepth, maxDepth, additionalStock + stockThickness);
+    
+    translate([0, 0, max(-drillingDepth,-maxDepth)]){
+        if(drillingTipDepth > 0){
+            cylinder(r1 = drillingTipRadius, r2 = drillingRadius*compensateRadiusCoefficientMark, 
+                      h = drillingTipDepth*1.001, $fn=drillingFn); // tip
+        }
+    
+        if(drillingDepth > drillingTipDepth){
+            translate([0, 0, drillingTipDepth])
+                cylinder(r = drillingRadius*compensateRadiusCoefficientMark, 
+                         h = drillingDepth-drillingTipDepth+cutoutdelta/2, $fn=drillingFn); // tip
+        }
+    }
+    
+}
+
 module RenderHoles(array, depth){
     
     counterDepth = screwCountersunkDepth;
@@ -290,29 +330,20 @@ module RenderHoles(array, depth){
     
     cylinderDepth = counterDepth - coneDepth;
     
-    holeMarkTipDepth = min(depth,drillBitPointAngle>0?min(drillingDepth,drillBitThickness/tan(drillBitPointAngle/2)/2):drillingDepth);
-    holeMarkRadius = (holeMarkTipDepth)*tan(drillBitPointAngle/2);
+    //drillingTipDepth = min(depth,drillBitPointAngle>0?min(drillingDepth,drillBitThickness/tan(drillBitPointAngle/2)/2):drillingDepth);
+    //drillingTipRadius = (drillingTipDepth)*tan(drillBitPointAngle/2);
     
     for(hole = array){
         translate([hole[0],hole[1],0]){
             
-            if(optimiseForDrilling){ // render drill marks
-                translate([0, 0, max(-drillingDepth,-depth)]){
-                    cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficientMark, 
-                                    h = holeMarkTipDepth*1.0001, $fn=drillingFn); // tip
-                
-                    translate([0, 0, holeMarkTipDepth])
-                            cylinder(r = holeMarkRadius*compensateRadiusCoefficientMark, 
-                                     h = drillingDepth-holeMarkTipDepth+cutoutdelta/2, $fn=drillingFn); // tip
-                }
-                
+            if(optimiseForDrilling || optimizeForMilling){ // render drill marks
+                drillingHole(depth);
             }else{  // render holes
                 translate([0,0,-depth])
                     cylinder(d=holeDiameter*compensateRadiusCoefficient, h = depth+cutoutdelta/2);
                 
                 
                 if(!hole[2] && chamferHolesDepth>0){ // chamfer holes
-                    
                     translate([0,0,-chamferHolesDepth])
                         cylinder(r1=holeDiameter/2*compensateRadiusCoefficient, r2=chamferOuterRadius*compensateRadiusCoefficient, h = chamferHolesDepth+cutoutdelta/2);
                 }
@@ -330,17 +361,8 @@ module RenderHoles(array, depth){
                         cylinder(r=countersunkOuterRadius*compensateRadiusCoefficient, h = cylinderDepth+cutoutdelta/2);
                 }
                 
-                if(optimiseForDrilling){
-                    translate([0,0,max(-counterDepth-drillingDepth,-depth,-spoilboardSheetThickness)]) // don't sink too deep
-                    {
-                        cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficientMark, 
-                                            h = holeMarkTipDepth*1.0001, $fn=drillingFn); // tip
-                        
-                        translate([0, 0, holeMarkTipDepth])
-                                cylinder(r = holeMarkRadius*compensateRadiusCoefficientMark, 
-                                         h = drillingDepth-holeMarkTipDepth+cutoutdelta/2, $fn=drillingFn); // tip
-                    }
-                    
+                if(optimiseForDrilling || optimizeForMilling){ // render drill marks
+                    drillingHole(min(counterDepth+drillingDepth,depth,spoilboardSheetThickness));
                 }
             }
         }
