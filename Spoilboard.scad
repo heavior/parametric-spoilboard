@@ -68,6 +68,8 @@ Altenratively, you can mark two opposize corners on the board, and reset zero on
 
 Outlining path in Autodesk Fusion if you are using drill marks:
 # import STL as mesh
+# Go to Mesh tab
+# Prepare -> Generate face groups
 # Modify -> Convert mesh
 # Manufacture: 
 # For tool, set non-zero tip size
@@ -81,15 +83,15 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 ## order points by X
 
 
-
 Outlining path in Autodesk Fusion if you want mill to do everthing
+This is super hacky, I need to get better at this stuff. Model generates with good paths, but fusion is not able to put a thick milling bit into tiny holes. So I trick it by using a 1/8 tool instead of 1/4 
+
 # set ensureThroughHoles = true, optimizeForMilling = true, optimiseForDrilling = false
-# After converting the model as above, use 2D pockets or 2D contour for all operations.
-# for coutnersinks - use inner contours (1 or two) as geometry, then smallest circle
+# configure the model as above
+# remove extra nodes on the bottom of each hole and on the surface by doing this: enable selecting only faces, click on a face and delete it - repeat for each hole. Autodesk will get smart and "flatten" all faces on the same plane
+# Then use 2D contour for all operations.
 # for through holes - select small bottom circle or it's contor as geometry
-
-
-Think: maybe make CNC mark the zero for the second pass
+# for coutnersinks and champers - use higher level contours (1 or two) as geometry
 
 */
 
@@ -315,7 +317,8 @@ module drillingHole(maxDepth, maxRadius = 0){
     translate([0, 0, max(-drillingDepth,-maxDepth)]){
         if(drillingTipDepth > 0){
             cylinder(r1 = drillingTipRadius, r2 = drillingRadius*compensateRadiusCoefficientMark, 
-                      h = drillingTipDepth*1.001, $fn=drillingFn); // tip
+                      h = drillingTipDepth, $fn=drillingFn); // tip
+            // ARTIFACTS HERE
         }
     
         if(drillingDepth > drillingTipDepth){
@@ -378,20 +381,20 @@ module RenderHoles(array, depth){
                     translate([0,0,-counterDepth]){
                         cylinder(r1 = countersunkInnerRadius*compensateRadiusCoefficient, 
                                  r2 = countersunkOuterRadius*compensateRadiusCoefficient, 
-                                 h = coneDepth*1.0001);
-                    }
+                                 h = coneDepth);             // ARTIFACTS HERE
+                    } 
                 }else{
                     translate([0,0,-counterDepth + (coneDepth-midDepth)]){
                         cylinder(r1 = countersunkMidRadius*compensateRadiusCoefficient, 
                              r2 = countersunkOuterRadius*compensateRadiusCoefficient, 
-                             h = midDepth*1.001);
+                             h = midDepth);            // ARTIFACTS HERE
                     }
                     
                     if(coneDepth > midDepth){ // Actually need more layers
                         translate([0,0,-counterDepth]){ // deeper
                             cylinder(r1 = countersunkInnerRadius*compensateRadiusCoefficient, 
                                  r2 = countersunkMidRadius*compensateRadiusCoefficient, 
-                                 h = (coneDepth-midDepth)*1.001);
+                                 h = (coneDepth-midDepth));             // ARTIFACTS HERE
                         }
                     }
                 }
