@@ -80,32 +80,34 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 ## order points by X
 
 Think: maybe make CNC mark the zero for the second pass
-TODO: fix hole pattern, it doesn't really fit!
-TODO: imrpove drill holes marking - make it deeper
-TODO: separate parameter for drill hole precision to separate from countersink
+
 */
 
-publishToCommunity = true; // fast setting to use before export to GrabCad or updating GitHub renders
+publishToCommunity = false; // fast setting to use before export to GrabCad or updating GitHub renders
 
 renderBed = false; // Use for debug and visualisation, set to false before export
 renderSpoilboard = true; // set to true for export, set to false to validate spoilboard design
+renderAdditionalStock = renderSpoilboard; // render additional stock under spoilboard
 centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
-markDrillHoles = false;  // Set to true if you want hole marks for drill, false if you want CNC to complete the holes
+optimiseForDrilling = true;  // Set to true if you want to use drilling operation, false if you want to mill the holes out
+                             // If true - you can use smaller bit with a shallow depth to create marks for manual drilling
 
+ensureThroughHoles = !publishToCommunity && true; // WARNING: can mill into CNC bed if not careful
+                // This will make the model thicker than your stock to ensure that drilling goes through thoroughly
+                // Make sure to have some kind of padding or older spoilboard when running task with this parameter
 
 turnModel =      !publishToCommunity && true; // Turn model 90 degrees for easier alignment. See instruction to see how it works
 twoPassMilling = !publishToCommunity && true; // render only half of the model (split by X) for two-step marking process    
-$fn =             publishToCommunity ? 36:10; // circles are rendered as regular n-gons, with n=$fn
+$fn =             publishToCommunity ? 36:36; // circles are rendered as regular n-gons, with n=$fn
               // lower value makes it easier to work in CAM software for post processing
               // higher value improves precision
-
-         
+drillingFn = 6;    // special value of fn for hole marks only. To mark drill holes, you only need a center point
 
 zeroZonSpoilboardSurface = true;  // if set to false, the Z zero will be set on the milling bed
 compensateForCircularPrecision = true;  // when using low $fn, this might be important:
     // Since circles are rendered as n-gons, their effective size is smaller than expected. This compensates for that
 compensateRadiusCoefficient = compensateForCircularPrecision?1/cos(180/$fn):1;
-
+compensateRadiusCoefficientMark = compensateForCircularPrecision?1/cos(180/drillingFn):1;
 
 
 // Screw that mounts spoilboard to the bed:
@@ -116,6 +118,7 @@ screwCountersunkAngle = 90;  // 90 is default for metric screws. set to 0 for st
 validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
 // change this value only if you understand what you are doing, the countersunk will probably render not the way you expectwant
         
+
 spoilboardMetricThread = 6; // mm
 holeDiameter = spoilboardMetricThread + 1; // allowing some wiggle room 
 chamferHolesDepth = .5; // chamfer each hole to this depth. set to 0 to skip
@@ -130,25 +133,46 @@ spoilboardSheetXdimenstion = 355;
 spoilboardSheetYdimenstion = 280;
 // Mark the zero on spoilboard - X: 17.5 Y: 10
 
-spoilboardSheetThickness = 5.9;
-holeMaxDepth = spoilboardSheetThickness + 2; // if you don't want through holes, limit this number to protect your bed
-holeDefaultDepth = holeMaxDepth;
+stockThickness = 5.9; // how thick is the spoilboard material
 
-holeMarkAngle = 90; // 0 for vertical holes. 
+drillBitPointAngle = 90; // 0 for vertical holes. 
                     // Match to the mill bit tool you want to use, or to the drill bit tip.
                     // The most common included angles for drills are 118° and 135° (for hardened steel).
-holeMarkWidth = 3;  // match to the drill bit size
-holeMarkDepth = 4.5;
+                    // You could use a 90-dedgree V-groove bit
+
+// shallow markings for manual drill:
+// drillBitThickness = 3;  // match to the drill bit size
+limitDrillingDepth = 2; // How deep to mark holes. Ignored when ensureThroughHoles is used
+
+drillBitThickness = 1/4 * 25.4; // One quarter bit
+throughHoleToolClearance = .5; // how deep we want the tool to go under the holes to ensure clean bottom cut
+cncBedClearance = 1; // how close do we want to get to the cnc bed to not ruin it
+
+throughHoleDrillTipClearance = optimiseForDrilling? drillBitThickness/2/tan(drillBitPointAngle/2):0;
+throughHoleStockClearance = (ensureThroughHoles?1:0)*(throughHoleToolClearance + throughHoleDrillTipClearance);
+
+additionalStock = throughHoleStockClearance + (ensureThroughHoles?cncBedClearance:0);
+
+if(additionalStock>0){
+    echo(str("Ensure clearance between stock and cnc bed: ",additionalStock, " mm"));
+}
+
+// deep markings for a through drill:
+spoilboardSheetThickness = stockThickness + additionalStock;
+
+drillingDepth = ensureThroughHoles?spoilboardSheetThickness:limitDrillingDepth;
+holeMaxDepth = ensureThroughHoles? spoilboardSheetThickness + cncBedClearance:stockThickness-cncBedClearance; // if you don't want through holes, limit this number to protect your bed
+
 /*
     Here is how to use drill holes:
-    1) set markDrillHoles = true
-    2) set holeMarkAngle
+    1) set optimiseForDrilling = true
+    2) set drillBitPointAngle
         for easiest drilling - match it to the drill tip angle or set lower
         for easiest milling - match to your working cnc bit (V-groove, probably)
-    3) set holeMarkWidth
+    3) set drillBitThickness
         for easiest milling - match to your working bit thickness
-    Note: holeMarkDepth is a limiting factor if your holeMarkAngle is too sharp. 
-    Rendering will prioritise holeMarkAngle over holeMarkWidth
+    Note: drillingDepth is a limiting factor if your drillBitPointAngle is too sharp. 
+    Rendering will prioritise drillBitPointAngle over drillBitThickness
 */
 
                     
@@ -213,7 +237,7 @@ if(!supportOversizeSpoilboard){
 }
 
 if(validateCountersunkDepth && screwCountersunkDepth>0){
-    assert(screwCountersunkDepth <= holeMaxDepth, 
+    assert(ensureThroughHoles || (screwCountersunkDepth <= holeMaxDepth), 
         str("max hole depth is not deep enough for countrsunk, min holeMaxDepth: ", screwCountersunkDepth));
     assert(screwCountersunkAngle >= 0, "negative countersunk angle");
     assert(screwCountersunkAngle < 180, "countersunk angle is too large");
@@ -283,15 +307,21 @@ module RenderHoles(array, depth){
     
     cylinderDepth = counterDepth - coneDepth;
     
-    holeMarkRealDepth = min(depth,holeMarkAngle>0?min(holeMarkDepth,holeMarkWidth/tan(holeMarkAngle/2)/2):holeMarkDepth);
-    holeMarkRadius = (holeMarkRealDepth+cutoutdelta/2)*tan(holeMarkAngle/2);
+    holeMarkTipDepth = min(depth,drillBitPointAngle>0?min(drillingDepth,drillBitThickness/tan(drillBitPointAngle/2)/2):drillingDepth);
+    holeMarkRadius = (holeMarkTipDepth)*tan(drillBitPointAngle/2);
     
     for(hole = array){
         translate([hole[0],hole[1],0]){
             
-            if(markDrillHoles){ // render drill marks
-                translate([0,0,-holeMarkRealDepth])
-                    cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficient, h = holeMarkRealDepth+cutoutdelta/2);
+            if(optimiseForDrilling){ // render drill marks
+                translate([0, 0, max(-drillingDepth,-depth)]){
+                    cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficientMark, 
+                                    h = holeMarkTipDepth*1.0001, $fn=drillingFn); // tip
+                
+                    translate([0, 0, holeMarkTipDepth])
+                            cylinder(r = holeMarkRadius*compensateRadiusCoefficientMark, 
+                                     h = drillingDepth-holeMarkTipDepth+cutoutdelta/2, $fn=drillingFn); // tip
+                }
                 
             }else{  // render holes
                 translate([0,0,-depth])
@@ -317,9 +347,17 @@ module RenderHoles(array, depth){
                         cylinder(r=countersunkOuterRadius*compensateRadiusCoefficient, h = cylinderDepth+cutoutdelta/2);
                 }
                 
-                if(markDrillHoles){
-                    translate([0,0,max(-counterDepth-holeMarkRealDepth,-depth)]) // don't sink too deep
-                        cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficient, h = holeMarkRealDepth+cutoutdelta/2);
+                if(optimiseForDrilling){
+                    translate([0,0,max(-counterDepth-drillingDepth,-depth,-spoilboardSheetThickness)]) // don't sink too deep
+                    {
+                        cylinder(r1 = 0, r2 = holeMarkRadius*compensateRadiusCoefficientMark, 
+                                            h = holeMarkTipDepth*1.0001, $fn=drillingFn); // tip
+                        
+                        translate([0, 0, holeMarkTipDepth])
+                                cylinder(r = holeMarkRadius*compensateRadiusCoefficientMark, 
+                                         h = drillingDepth-holeMarkTipDepth+cutoutdelta/2, $fn=drillingFn); // tip
+                    }
+                    
                 }
             }
         }
@@ -338,7 +376,17 @@ module RenderBed(){
 
 module RenderSheet(){
     difference(){
-        cube([twoPassMilling?spoilboardSheetXdimenstion/2:spoilboardSheetXdimenstion,spoilboardSheetYdimenstion,spoilboardSheetThickness]);
+        union(){
+            translate([0,0,additionalStock])
+                cube([twoPassMilling?spoilboardSheetXdimenstion/2:spoilboardSheetXdimenstion,
+                        spoilboardSheetYdimenstion, stockThickness]);
+    
+            if(additionalStock>0){
+                cube([twoPassMilling?spoilboardSheetXdimenstion/2:spoilboardSheetXdimenstion,
+                        spoilboardSheetYdimenstion, additionalStock]);
+            }
+        }
+        
         translate([0,0,spoilboardSheetThickness])
             RenderHoles(spoilboardHoles,min(holeMaxDepth,spoilboardSheetThickness+cutoutdelta));
     }
