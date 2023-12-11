@@ -115,7 +115,7 @@ Think: maybe make CNC mark the zero for the second pass
 
     turnModel =      !publishToCommunity && true; // Turn model 90 degrees for easier alignment. See instruction to see how it works
     twoPassMilling = !publishToCommunity && true; // render only half of the model (split by X) for two-step marking process    
-    $fn =             publishToCommunity ? 36:36; // circles are rendered as regular n-gons, with n=$fn
+    $fn =             publishToCommunity ? 36:18; // circles are rendered as regular n-gons, with n=$fn
                   // lower value makes it easier to work in CAM software for post processing
                   // higher value improves precision
     drillingFn = optimiseForDrilling?6:$fn;    // special value of fn for drilling only. To mark drill job in CAM, you only need a center point
@@ -367,12 +367,10 @@ module RenderHoles(array, depth){
             }else{  // render holes
                 translate([0,0,-depth])
                     cylinder(d=holeDiameter*compensateRadiusCoefficient, h = depth+cutoutdelta/2);
-                
-                if(!hole[2] && chamferHolesDepth>0){ // chamfer for mounting screws
-                    translate([0,0,-chamferHolesDepth])
-                        cylinder(r1=holeDiameter/2*compensateRadiusCoefficient, r2=chamferOuterRadius*compensateRadiusCoefficient, h = chamferHolesDepth+cutoutdelta/2);
-                }
-
+            }
+            if(!optimiseForDrilling && !hole[2] && chamferHolesDepth>0){ // chamfer for mounting screws
+                translate([0,0,-chamferHolesDepth])
+                    cylinder(r1=holeDiameter/2*compensateRadiusCoefficient, r2=chamferOuterRadius*compensateRadiusCoefficient, h = chamferHolesDepth+cutoutdelta/2);
             }
             // render countersinks:
             if(hole[2] && screwCountersunkDepth>0){ 
