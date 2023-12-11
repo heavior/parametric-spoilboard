@@ -81,8 +81,6 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 
 Think: maybe make CNC mark the zero for the second pass
 
-TODO: support flat end mills
-
 */
 
 
@@ -132,13 +130,13 @@ TODO: support flat end mills
     // Screw that mounts spoilboard to the bed:
     screwCountersunkDepth = 3.5; // Set to 0 if don't want machined countersink or pocket at all
     screwHeadWidth = 12;         // screw head diameter. If you want - add some tolerance
-    screwCountersunkAngle = 0;  // 90 is default for metric screws. set to 0 for straight pocket   
+    screwCountersunkAngle = 90;  // 90 is default for metric screws. set to 0 for straight pocket   
                                  // for best one-tool operation, ensure your working bit has the same tip angle
 
     validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
     // change this value only if you understand what you are doing, the countersunk will probably render not the way you expect
 
-    drillBitPointAngle = 0; // Match to the mill bit tool you want to use, or to the drill bit tip
+    drillBitPointAngle = 90; // Match to the mill bit tool you want to use, or to the drill bit tip
                             // The most common included angles for drills are 118° and 135° (for hardened steel).
                             // Use a 90-dedgree V-groove bit allows you to complete the board without changing the tip
                             // Set 0 for flat end mill (180 also works)
@@ -288,7 +286,7 @@ function spoilboardHoleCheck(hole) =
 spoilboardHoles = [ for (elem = spoilboardHolesRaw) if(spoilboardHoleCheck(elem)) elem]; // remove holes that are too close to the edge
     
 
-module drillingHole(maxDepth){
+module drillingHole(maxDepth, maxRadius = 0){
     // cylinder ending with a cone, summing together up to drillingDepth
     
     // optimise for milling - ensure there is a contour for the tool tip to follow easily
@@ -299,7 +297,7 @@ module drillingHole(maxDepth){
     // problem: openSCAD might weld cones together. Consider minor adjustment
                 
     drillingDiameter = optimiseForDrilling ? drillBitThickness: holeDiameter;
-    drillingRadius = drillingDiameter/2;
+    drillingRadius = (maxRadius>0) ? min(drillingDiameter/2, maxRadius) : (drillingDiameter/2);
     
     drillingTipRadius = (drillingDiameter-drillBitThickness)/2; // will be 0 if optimised for drilling    
     // drillingDepth calculated before
@@ -336,12 +334,26 @@ module RenderHoles(array, depth){
     
     cylinderDepth = counterDepth - coneDepth;
     
+    optimiseConeForMilling = !(!optimizeForMilling || drillingTipDepth==0 || coneDepth/drillingTipDepth>2);
+    if(!optimiseConeForMilling && optimizeForMilling){
+        echo("can't optimise countersink for milling with flat drill bit, or countersink is too deep");
+    }
+    
+    // three levels: countersunkInnerRadius, countersunkMidRadius, countersunkOuterRadius
+    //               -counterDepth-coneDepth  -drillingTipDepth
+    midDepth = drillingTipDepth;
+    countersunkMidRadius = countersunkOuterRadius - drillBitThickness/2;
+    //countersunkInnerRadius + (countersunkOuterRadius - countersunkInnerRadius) * (coneDepth - drillingTipDepth)/coneDepth;
+    echo("radius",countersunkMidRadius,countersunkInnerRadius);
+                    
     
     for(hole = array){
         translate([hole[0],hole[1],0]){
             
             if(optimiseForDrilling || optimizeForMilling){ // render drill marks
-                drillingHole(depth);
+                if(!hole[2]){
+                    drillingHole(depth);
+                }
             }else{  // render holes
                 translate([0,0,-depth])
                     cylinder(d=holeDiameter*compensateRadiusCoefficient, h = depth+cutoutdelta/2);
@@ -354,42 +366,20 @@ module RenderHoles(array, depth){
             }
             // render countersinks:
             if(hole[2] && screwCountersunkDepth>0){ 
-                if(!optimizeForMilling || drillingTipDepth==0 || coneDepth/drillingTipDepth>2){
-                    if(optimiseForMilling){
-                         echo("can't optimise countersink for milling with flat drill bit, or countersink is too deep");
-                        // TODO: maybe do a ladder when mills don't match well?
-                    }
+                if(!optimiseConeForMilling){
                     translate([0,0,-counterDepth]){
                         cylinder(r1 = countersunkInnerRadius*compensateRadiusCoefficient, 
                                  r2 = countersunkOuterRadius*compensateRadiusCoefficient, 
                                  h = coneDepth*1.0001);
                     }
                 }else{
-                    coneSections = coneDepth/drillingTipDepth;
-                    if(coneSections<1){
-                        echo("this drill bit might damage countersink top");
-                        // TODO: smaller inner radius for this case, and smaller hole in general, should still work well for milling
-                    }
-                    
-                    // three levels: countersunkInnerRadius, countersunkMidRadius, countersunkOuterRadius
-                    //               -counterDepth-coneDepth  -drillingTipDepth
-                    
-                    midDepth = drillingTipDepth;
-                    countersunkMidRadius = countersunkInnerRadius 
-                                + (countersunkOuterRadius - countersunkInnerRadius) * (coneDepth-drillingTipDepth)/coneDepth;
-                    
-                    if(countersunkMidRadius<countersunkInnerRadius){
-                        countersunkMidRadius = countersunkInnerRadius;
-                        midDepth = coneDepth;
-                    }
-                    
-                    translate([0,0,-counterDepth+ (coneDepth-midDepth)]){
+                    translate([0,0,-counterDepth + (coneDepth-midDepth)]){
                         cylinder(r1 = countersunkMidRadius*compensateRadiusCoefficient, 
                              r2 = countersunkOuterRadius*compensateRadiusCoefficient, 
                              h = midDepth*1.001);
                     }
                     
-                    if(coneDepth>midDepth){ // Actually need more layers
+                    if(coneDepth > midDepth){ // Actually need more layers
                         translate([0,0,-counterDepth]){ // deeper
                             cylinder(r1 = countersunkInnerRadius*compensateRadiusCoefficient, 
                                  r2 = countersunkMidRadius*compensateRadiusCoefficient, 
@@ -404,7 +394,8 @@ module RenderHoles(array, depth){
                 }
                 
                 if(optimiseForDrilling || optimizeForMilling){ // render drill marks
-                    drillingHole(min(counterDepth+drillingDepth,depth,spoilboardSheetThickness));
+                    drillingHole(min(counterDepth+drillingDepth,depth,spoilboardSheetThickness), 
+                                    optimizeForMilling?countersunkMidRadius:0);
                 }
             }
         }
