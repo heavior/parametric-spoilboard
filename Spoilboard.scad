@@ -117,7 +117,7 @@ TODO: optimise milling paths for cone
         // Since circles are rendered as n-gons, their effective size is smaller than expected. This compensates for that
         
 
-// 2. Physical dimensions: (super important
+// 2. Physical dimensions: (super important)
 
     //cnc bed dimensions
     bedXdimension = 360;
@@ -158,7 +158,7 @@ TODO: optimise milling paths for cone
     // third parameter is true or false. true if it will be used to secure Spoilboard on the bed
     holes = [
     //row 1
-        [20,20,true], // true marks holes used to mount Spoilboard to the bed, they will get shapmher 
+        [20,20,true], // "true" marks holes used to mount Spoilboard to the bed, they will get chamfer 
         [80,20],
         [140,20],
 
@@ -273,23 +273,6 @@ function spoilboardHoleCheck(hole) =
     && hole[1] <= spoilboardSheetYdimenstion - realKeepout;    
 spoilboardHoles = [ for (elem = spoilboardHolesRaw) if(spoilboardHoleCheck(elem)) elem]; // remove holes that are too close to the edge
     
-
-module compensateCylinder(){
-    
-    // cylinder(h = height, r1 = BottomRadius, r2 = TopRadius, center = true/false);
-    //  cylinder(h=15, d1=20, d2=0, center=true);
-    /*
-    equivalent scripts
- cylinder(h=20, r=10, center=true);
- cylinder(  20,   10, 10,true);
- cylinder(  20, d=20, center=true);
- cylinder(  20,r1=10, d2=20, center=true);
- cylinder(  20,r1=10, d2=2*10, center=true);
-    */
-    
-    
-}
-
 module RenderHoles(array, depth){
     
     counterDepth = screwCountersunkDepth;
