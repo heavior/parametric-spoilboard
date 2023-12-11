@@ -45,6 +45,7 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 * Set twoPassMilling = true, it will optimise the render for a two-pass milling
 
 * Mark a corner hole (X,Y zero) on the board. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard". This is important to get it right, as any error will double during production
+* If using ensureThroughHoles - use an old spoilboard or some other material between CNC bed and new board
 * Align and secure a 90 degree clamp on the cnc bed. It will serve as a reference for the process
 * Position the board in portrait orientation using clamp, secure it. Check that no mounting hardware intervenes with expected holes or mill head moving
 * Align X,Y zero on that hole mark
@@ -57,7 +58,7 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 * With 90 degree clamp, you should not need to change zero position
 * Run the pass again
 
-* If you were not using through holes, finish the holes with a drill slightly thicker than the threads on the bed.
+* If you were not using through holes, finish the holes with a drill slightly thicker than the threads on the bed. Try extra hard to be accurate with driles, and go in gently to prevent chipping
 
 
 If you don't have a 90 degree clamp to secure on the board, just make one! :)
@@ -78,6 +79,15 @@ Outlining path in Autodesk Fusion if you are using drill marks:
 # path for drill marks: drill
 ## select centers of each mark including chamfers as points
 ## order points by X
+
+
+
+Outlining path in Autodesk Fusion if you want mill to do everthing
+# set ensureThroughHoles = true, optimizeForMilling = true, optimiseForDrilling = false
+# After converting the model as above, use 2D pockets or 2D contour for all operations.
+# for coutnersinks - use inner contours (1 or two) as geometry, then smallest circle
+# for through holes - select small bottom circle or it's contor as geometry
+
 
 Think: maybe make CNC mark the zero for the second pass
 
