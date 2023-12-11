@@ -94,10 +94,10 @@ TODO: support flat end mills
     renderAdditionalStock = renderSpoilboard; // render additional stock under spoilboard. Change if need debugging
 
     centerAroundFirstSpoilboardHole = true; // if true, center the fist hole
-    optimiseForDrilling = false;  // Set to true if you want to use drilling operation, false if you want to mill the holes out
+    optimiseForDrilling = true;  // Set to true if you want to use drilling operation, false if you want to mill the holes out
                                   // If true - you can use smaller bit with a shallow depth to create marks for manual drilling
 
-    optimizeForMilling = !publishToCommunity && true;  // creates countours for milling with V-groove bits
+    optimizeForMilling = !publishToCommunity && false;  // creates countours for milling with V-groove bits
                                 // when optimizing for milling, uses drillBitPointAngle and drillBitThickness as tool parameters
                                 // can be true if optimizeForMilling=true 
 
@@ -138,10 +138,10 @@ TODO: support flat end mills
     validateCountersunkDepth = true; // this checks that there is enough depth for the countersink
     // change this value only if you understand what you are doing, the countersunk will probably render not the way you expect
 
-    drillBitPointAngle = 90; // Match to the mill bit tool you want to use, or to the drill bit tip.
-                        // flat end mills are not supported
-                        // The most common included angles for drills are 118° and 135° (for hardened steel).
-                        // You could use a 90-dedgree V-groove bit
+    drillBitPointAngle = 0; // Match to the mill bit tool you want to use, or to the drill bit tip
+                            // The most common included angles for drills are 118° and 135° (for hardened steel).
+                            // Use a 90-dedgree V-groove bit allows you to complete the board without changing the tip
+                            // Set 0 or 180 for flat end mill
     drillBitThickness = 1/4 * 25.4; // Drill bit thickness
     // drillBitThickness = 1/8 * 25.4;  // thinner option
 
@@ -208,7 +208,13 @@ TODO: support flat end mills
 
 // End of parameters section
 
-throughHoleDrillTipClearance = (optimiseForDrilling||optimiseForMilling)? drillBitThickness/2/tan(drillBitPointAngle/2):0;
+assert(!(optimiseForDrilling&&optimizeForMilling),"Can't optimise for drilling and milling at the same time");
+assert(drillBitPointAngle>=0 && drillBitPointAngle<=180, "drillBitPointAngle is out of range");
+
+throughHoleDrillTipClearance = ((optimiseForDrilling||optimizeForMilling) 
+                                && (drillBitPointAngle>0&&drillBitPointAngle<180))? 
+                                drillBitThickness/2/tan(drillBitPointAngle/2):0;
+                                
 throughHoleStockClearance = (ensureThroughHoles?1:0)*(throughHoleToolClearance + throughHoleDrillTipClearance);
 
 additionalStock = throughHoleStockClearance + (ensureThroughHoles?cncBedClearance:0);
@@ -229,8 +235,6 @@ cutoutdelta=.1;// eny positive number should work
 supportOversizeSpoilboard = false; // this checks that Spoilboard sheet is smaller than the board. 
                                    // change this value only if you understand what you are doing
 
-
-assert(!(optimiseForDrilling&&optimizeForMilling),"Can't optimise for drilling and milling at the same time");
 
 if(!supportOversizeSpoilboard){
     assert(bedXdimension>=spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"); 
@@ -286,17 +290,14 @@ module drillingHole(maxDepth){
     // problem: 1/4 inch tool might be too bif for the chamfer
     // problem: openSCAD might weld cones together. Consider minor adjustment
                 
-    
     drillingDiameter = optimiseForDrilling ? drillBitThickness: holeDiameter;
     drillingRadius = drillingDiameter/2;
     
-    drillingTipRadius = (drillingDiameter-drillBitThickness)/2; // will be 0 if optimised for drilling
-    
+    drillingTipRadius = (drillingDiameter-drillBitThickness)/2; // will be 0 if optimised for drilling    
     // drillingDepth calculated before
     
-    drillingTipDepth = drillBitThickness/tan(drillBitPointAngle/2)/2;
-    
-    echo("depts", drillingDepth, drillingTipDepth, maxDepth, additionalStock + stockThickness);
+    drillingTipDepth = (drillBitPointAngle==0 || drillBitPointAngle==180)?(optimiseForDrilling?0.1:0):drillBitThickness/tan(drillBitPointAngle/2)/2;
+    // non-zero height to ensure a center point
     
     translate([0, 0, max(-drillingDepth,-maxDepth)]){
         if(drillingTipDepth > 0){
