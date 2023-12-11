@@ -93,6 +93,7 @@ This is super hacky, I need to get better at this stuff. Model generates with go
 # for through holes - select small bottom circle or it's contor as geometry
 # for coutnersinks and champers - use higher level contours (1 or two) as geometry
 
+TODO: figure out how to reduce depth passes, Alternatively - how to add roughing pass easily 
 */
 
 
