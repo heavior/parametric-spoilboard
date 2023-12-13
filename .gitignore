@@ -1,3 +1,5 @@
 
 autodesk fusion machine/grbl.cps
 .DS_Store
+Spoilboard/.vscode/*
+Spoilboard/.env

@@ -1,0 +1,10 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"script",
+	"author":	"Evgeny Balashov",
+	"description":	{
+		"":	"Parametric spoilboard generation"
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
