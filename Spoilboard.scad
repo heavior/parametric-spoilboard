@@ -30,6 +30,10 @@ SOFTWARE.
 
 Readme file with more details available here: https://github.com/heavior/parametric-spoilboard
 
+
+Note: Since OpenSCAD is limited to STL generation, and STL is not a good format for CNC milling, I'm not going to try to optimise it further and will swtich to Autodesk Fusion 360 scripting (Python)
+
+
 How to use:
 1) Configure holes and other parameters at the beginning of the file
 2) Export STL
@@ -63,7 +67,6 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 
 If you don't have a 90 degree clamp to secure on the board, just make one! :)
 Altenratively, you can mark two opposize corners on the board, and reset zero on those markings between passes. You need to be accurate in your markings. Measure thrice!
-
 
 
 Outlining path in Autodesk Fusion if you are using drill marks:
@@ -110,7 +113,7 @@ TODO: figure out how to reduce depth passes, Alternatively - how to add roughing
 
     optimizeForMilling = !publishToCommunity && true;  // creates countours for milling with V-groove bits
                                 // when optimizing for milling, uses drillBitPointAngle and drillBitThickness as tool parameters
-                                // can be true if optimizeForMilling=true 
+                                // can't be true if optimizeForMilling=true 
 
     ensureThroughHoles = !publishToCommunity && true; // WARNING: can mill into CNC bed if not careful
                     // This will make the model thicker than your stock to ensure that drilling goes through thoroughly
