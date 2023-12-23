@@ -142,9 +142,12 @@ app = adsk.core.Application.get()
 ui = app.userInterface
 rootComp = app.activeProduct.rootComponent
 
-def createMMValue(value):
-    return adsk.core.ValueInput.createByReal(value)
+def toCM(value):
+    return value/10.0;
 
+def createMMValue(value):
+    # TODO: confirm this
+    return adsk.core.ValueInput.createByReal(toCM(value))
 
 def createDegValue(degrees):
     # Create a ValueInput for a value in degrees
@@ -171,8 +174,8 @@ def renderBox(name, sizeX, sizeY, sizeZ, cornerX, cornerY, cornerZ):
 
     # Draw a rectangle on the sketch for the box
     lines = boxSketch.sketchCurves.sketchLines
-    rect = lines.addTwoPointRectangle(adsk.core.Point3D.create(cornerX, cornerY, cornerZ),
-                                      adsk.core.Point3D.create(cornerX + sizeX, cornerY + sizeY, cornerZ))
+    rect = lines.addTwoPointRectangle(adsk.core.Point3D.create(toCM(cornerX), toCM(cornerY), toCM(cornerZ)),
+                                      adsk.core.Point3D.create(toCM(cornerX + sizeX), toCM(cornerY + sizeY), toCM(cornerZ)))
 
     # Extrude the sketch to create the box
     prof = boxSketch.profiles.item(0)
@@ -201,15 +204,15 @@ def createSketchWithPoints(name, component, points, plane, mountingHoles, shiftX
     sketches = component.sketches
     sketch = sketches.add(plane)
     sketch.name = name
-    collection = adsk.core.ObjectCollection.create()
+    # collection = adsk.core.ObjectCollection.create()
     # Iterate over the points array and add them to the sketch
     for point in points:
         x, y, mounting = point  # Extract x and y coordinates
         if mounting == mountingHoles:
-            sketchPoint = adsk.core.Point3D.create(x + shiftX, y + shiftY, 0)  # Create a Fusion 360 point
-            sketch.sketchPoints.add(sketchPoint)  # Add the point to the sketch
-            collection.add(sketchPoint)
-
+            sketchPoint = adsk.core.Point3D.create(toCM(x + shiftX), toCM(y + shiftY), 0)  # Create a Fusion 360 point
+            sketch.sketchPoints.add(sketchPoint)  # Add the point to the sketchtoCM(
+            # collection.add(sketchPoint)
+    sketch.sketchPoints.item(0).deleteMe()
     return sketch
 
 
@@ -223,41 +226,36 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
     # Iterate through all sketch points and create holes
     holes = rootComp.features.holeFeatures
 
-    skipFirst = True # hack to avoud first point on the sketch - zero,zero
+    #skipFirst = True # hack to avoud first point on the sketch - zero,zero
+    #points.sketchPoints.item(0).deleteMe()
+    collection = adsk.core.ObjectCollection.create()
     for sketchPoint in points.sketchPoints:
-        if skipFirst:
-            skipFirst = False
-            continue
-        try:
-            if countersinkAngle:
-                #raise Exception("createCountersinkInput {},{},{} ".format(diameter, countersinkDiameter, countersinkAngle))
-                holeInput = holes.createCountersinkInput(createMMValue(diameter), createMMValue(countersinkDiameter), createDegValue(countersinkAngle))
-            elif countersinkDiameter: # TODO: support counterbore depth
-                #raise Exception("createCounterboreInput {},{},{} ".format(diameter, countersinkDiameter, (countersinkDiameter - diameter)/2))
-                holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue((countersinkDiameter - diameter)/2))
-            else:
-                holeInput = holes.createSimpleInput(createMMValue(diameter))
+        collection.add(sketchPoint)
+        
+    try:
+        if countersinkAngle:
+            #raise Exception("createCountersinkInput {},{},{} ".format(diameter, countersinkDiameter, countersinkAngle))
+            holeInput = holes.createCountersinkInput(createMMValue(diameter), createMMValue(countersinkDiameter), createDegValue(countersinkAngle))
+        elif countersinkDiameter: # TODO: support counterbore depth
+            #raise Exception("createCounterboreInput {},{},{} ".format(diameter, countersinkDiameter, (countersinkDiameter - diameter)/2))
+            holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue((countersinkDiameter - diameter)/2))
+        else:
+            holeInput = holes.createSimpleInput(createMMValue(diameter))
 
-            holeInput.participantBodies = [targetBody]
+        holeInput.participantBodies = [targetBody]
 
-            #holeInput.setPositionBySketchPoints(points.sketchPoints)
-            holeInput.setPositionBySketchPoint(sketchPoint)
-            holeInput.setDistanceExtent(createMMValue(depth))
+        holeInput.setPositionBySketchPoints(collection)
+        holeInput.setDistanceExtent(createMMValue(depth))
 
-            #if drillTipAngle:
-            #    holeInput.tipAngle = createDegValue(drillTipAngle)
-
-            #holeInput.isDefaultDirection = False;
-
-            # Check for countersink settings
-            
-            hole = holes.add(holeInput)
-
-        except:
-            global exceptionUICounter
-            if exceptionUICounter < maxExceptions and ui:
-                ui.messageBox('Failed to create hole at point {}:\n{}'.format(getSketchPointCoordinates(sketchPoint),traceback.format_exc()))            
-            exceptionUICounter += 1
+        if drillTipAngle:
+            holeInput.tipAngle = createDegValue(drillTipAngle)        
+        hole = holes.add(holeInput)
+        return
+    except:
+        global exceptionUICounter
+        if exceptionUICounter < maxExceptions and ui:
+            ui.messageBox('Failed to create hole at point {}:\n{}'.format(getSketchPointCoordinates(sketchPoint),traceback.format_exc()))            
+        exceptionUICounter += 1
 
 def run(context):
     global holes, bedXdimension, bedYdimension, spoilboardSheetXdimenstion, spoilboardSheetYdimenstion
