@@ -35,7 +35,7 @@ maxExceptions = 4 # script will not show more exceptions than this
 # 1. General Rendering configuration
 publishToCommunity = False # fast setting to use before export to GrabCad or updating GitHub renders
 
-renderBed = False       # Use for debug and visualisation
+renderBed = True       # Use for debug and visualisation
 renderSpoilboard = True # set to true for machinning, set to false to validate spoilboard design
 renderAdditionalStock = False # renderSpoilboard    # render additional stock under spoilboard. Change if need debugging
 
@@ -260,7 +260,7 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
             exceptionUICounter += 1
 
 def run(context):
-    global holes
+    global holes, bedXdimension, bedYdimension, spoilboardSheetXdimenstion, spoilboardSheetYdimenstion
     # parameter validation and some prep calculations:
     # check parameters
     # assert millBitPointAngle >= 0 and millBitPointAngle <= 180, "millBitPointAngle is out of range"
@@ -328,23 +328,23 @@ def run(context):
     centerX = spoilboardHoles[0][0];
     centerY = spoilboardHoles[0][1];
 
-    ui = None
+
+    # TODO: support turnModel 
+    # to turn model - swap X and Y everywhere
+    if twoPassMilling:
+        spoilboardSheetXdimenstion = spoilboardSheetXdimenstion/2
+    if turnModel:
+        (centerX, centerY) = (centerY, centerX) 
+        (bedXdimension, bedYdimension) = (bedYdimension, bedXdimension)
+        (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
+        (spoilboardXShift, spoilboardYShift) =  (spoilboardYShift, spoilboardXShift)
+        for hole in spoilboardHoles:
+            (hole[0],hole[1]) = (hole[1],hole[0])
+        
     try:
         if cleanModel:
             deleteAllBodiesAndSketches()
-        # ui  = app.userInterface
-        # ui.messageBox('Hello script')
-    
-        # Render the box
-        #renderBox(sizeX, sizeY, sizeZ, cornerX, cornerY, cornerZ)
 
-        # Add the hole
-        #hole(diameter, holeDepth, centerX, centerY, sizeZ)
-
-        # TODO: support turnModel 
-
-
-        # TODO: figure out why does it try to create an exrta hole at point 0,0 each time
         xyPlane = rootComp.xYConstructionPlane
         mountingHoleCollection = createSketchWithPoints("Mounting points", rootComp, spoilboardHoles, xyPlane, True,  -centerX, -centerY)
         holeCollection = createSketchWithPoints("Drilling points", rootComp, spoilboardHoles, xyPlane, False, -centerX, -centerY)
@@ -355,7 +355,7 @@ def run(context):
             createHolesFromSketch(bed,holeCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
 
         if renderSpoilboard:
-            spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion/2 if twoPassMilling else spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
+            spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
             createHolesFromSketch(spoilboard,mountingHoleCollection, holeDiameter, holeMaxDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
             createHolesFromSketch(spoilboard,holeCollection, holeDiameter, holeMaxDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
     
