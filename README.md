@@ -1,6 +1,8 @@
-# Parametric OpenSCAD model for generating CNC spoilboards and Sainsmart Genmitsu 3030-Pro cnc bed grid pattern
+# Parametric model for generating CNC spoilboards and Sainsmart Genmitsu 3030-Pro cnc bed grid pattern
 
-This file is for generating spoilboards for CNC that have flat beds with grids of holes instead of slots
+It has openSCAD model (outdated) and Autodesk Fusion 360 model (supported)
+
+This repository is for generating spoilboards for CNC machines that have flat beds with grids of holes instead of slots
 
 DIY spoilboard is cheaper and can be tuned to your needs. You can:
 * use thinner spoilboard to save some vertical height
@@ -16,10 +18,11 @@ This model supports two manufactaruing options:
 Either option works well, because through holes do not require absolute precision.
 
 # How to use:
-Open Spoilboard.scad using OpenSCAD and read the comments in the file, you'll need to tune parameters and exportSTL for future use in your preferred CAD/CAM software
+Open Spoilboard.scad if you are using OpenSCAD, or Spoliboard.py if you are using Autodesk Fusion 360
+Then read the comments in the file, you'll need to tune parameters to generate model, and then setup operations in your CAM software 
 
 # Available renders:
-If you want quick access to the STL files, and don't want to play with OpenSCAD, check out these renders.
+If you want quick access to the STL files, and don't want to play with scripts, check out these renders.
 Please note that your might have an MDF board with different dimensions, different screws and otherwise different preferences, and you might have to tune the models in your favoride CAD software. I'd recommend tuning everything in OpenSCAD
 
 renders/3030-cncbed.stl - 3D model of Sainsmart Genmitsu 3030-pro cnc mill

@@ -25,7 +25,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-
 """
 # Parametric Autodesk Fusion model for generating CNC spoilboards and Sainsmart Genmitsu 3030-Pro cnc bed grid pattern
 
@@ -78,11 +77,11 @@ maxExceptions = 4 # script will not show more exceptions than this
 # 1. General Rendering configuration
 publishToCommunity = True # fast setting to use before export to GrabCad or updating GitHub renders
 
-renderBed = True       # Use for debug and visualisation
+renderBed = False       # Use for debug and visualisation
 renderSpoilboard = True # set to true for machinning, set to false to validate spoilboard design
 renderAdditionalStock = False # renderSpoilboard    # render additional stock under spoilboard. Change if need debugging
+# TODO: test addional stock in fusion
 
-optimizeForMilling = True   # creates countours for milling with V-groove bits
 ensureThroughHoles = not publishToCommunity and True  # WARNING: can mill into CNC bed if not careful
                             # This will make the model thicker than your stock to ensure that milling goes through thoroughly
                             # Make sure to have some kind of padding or older spoilboard when running task with this parameter
@@ -90,7 +89,7 @@ ensureThroughHoles = not publishToCommunity and True  # WARNING: can mill into C
 turnModel =      not publishToCommunity and True    # Turn model 90 degrees for easier alignment. See instruction to see how it works
 twoPassMilling = not publishToCommunity and True    # render only half of the model (split by X) for two-step marking process    
 
-cleanModel = not publishToCommunity and True        # script will remove objects and stetches from the project - simplifies script debug
+cleanModel =     not publishToCommunity and False    # script will remove objects and stetches from the project - simplifies script debug
 
 # 2. Physical dimensions: (super important)
 # bed dimensions
@@ -304,8 +303,6 @@ def run(context):
     global holes, bedXdimension, bedYdimension, spoilboardSheetXdimenstion, spoilboardSheetYdimenstion
     # parameter validation and some prep calculations:
     # check parameters
-    # assert millBitPointAngle >= 0 and millBitPointAngle <= 180, "millBitPointAngle is out of range"
-    # assert not optimizeForMilling or (millBitPointAngle==screwCountersunkAngle), "When optimising for milling, millBitPointAngle must be equal to screwCountersunkAngle"
 
     millingTipDepth = 0 if (millBitPointAngle==0 or millBitPointAngle==180) else millBitThickness/math.tan(millBitPointAngle/2 * math.pi/2)/2
     throughHoleStockClearance = (throughHoleToolClearance + millingTipDepth) if ensureThroughHoles else 0
@@ -319,7 +316,7 @@ def run(context):
     holeMaxDepth = (spoilboardSheetThickness + additionalStock if ensureThroughHoles else stockThickness) - cncBedClearance 
 
     supportOversizeSpoilboard = False # this checks that Spoilboard sheet is smaller than the board. 
-                                    # change this value only if you understand what you are doing
+                                      # change this value only if you understand what you are doing
 
     if not supportOversizeSpoilboard:
         assert bedXdimension >= spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"
@@ -331,7 +328,7 @@ def run(context):
             requiredCounterSunkDepth = (screwHeadWidth - holeDiameter)/2/ math.tan(screwCountersunkAngle/2 * math.pi/2)/2
             assert requiredCounterSunkDepth <= screwCountersunkDepth, "countersunk is too shallow for this angle, min screwCountersunkDepth: " + str(requiredCounterSunkDepth)
 
-    # Completing holes2 array with symmetrical values
+    # Completing holes array with symmetrical values
     if boardXsymmetrical:
         holes += [[bedXdimension - elem[0], elem[1], elem[2]] for elem in holes]
 
@@ -354,6 +351,8 @@ def run(context):
     spoilboardXShift = (bedXdimension - spoilboardSheetXdimenstion) / 2 if centerSpoilboard else spoilboardCornerX
     spoilboardYShift = (bedYdimension - spoilboardSheetYdimenstion) / 2 if centerSpoilboard else spoilboardCornerY
 
+    # here we realign all holes to the spoilboard system of coordinates
+    # TODO: this is not important for autodesk, so it can be optimised to use global coordinates
     spoilboardHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in remove_duplicate_holes(holes)]
 
     realKeepout = spoilboardEdgeKeepOut + holeDiameter/2
@@ -365,7 +364,7 @@ def run(context):
 
     # now we have an array that's ready to use, let's get to rendering
 
-
+    # getting the coordinates that should be 0,0 - aligning on the first hole
     centerX = spoilboardHoles[0][0];
     centerY = spoilboardHoles[0][1];
 
@@ -378,7 +377,7 @@ def run(context):
         (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
         (spoilboardXShift, spoilboardYShift) =  (spoilboardYShift, spoilboardXShift)
         for hole in spoilboardHoles:
-            (hole[0],hole[1]) = (hole[1],hole[0])
+            (hole[0], hole[1]) = (hole[1], hole[0])
         
     try:
         if cleanModel:
@@ -397,7 +396,6 @@ def run(context):
             spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
             createHolesFromSketch(spoilboard,mountingHoleCollection, holeDiameter, holeMaxDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
             createHolesFromSketch(spoilboard,holeCollection, holeDiameter, holeMaxDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
-    
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
