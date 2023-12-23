@@ -35,7 +35,7 @@ maxExceptions = 4 # script will not show more exceptions than this
 # 1. General Rendering configuration
 publishToCommunity = False # fast setting to use before export to GrabCad or updating GitHub renders
 
-renderBed = True       # Use for debug and visualisation
+renderBed = False       # Use for debug and visualisation
 renderSpoilboard = True # set to true for machinning, set to false to validate spoilboard design
 renderAdditionalStock = False # renderSpoilboard    # render additional stock under spoilboard. Change if need debugging
 
@@ -126,8 +126,8 @@ spoilboardCornerY = (bedYdimension - spoilboardSheetYdimenstion)/2
 
 limitMillingDepth = 5 # How deep to mill holes. Ignored when ensureThroughHoles is used
 
-chamferHolesDepth = .5 # chamfer each hole to this depth. set to 0 to skip
-chamferHolesAngle = millBitPointAngle # use the 
+chamferWidth = .5 # chamfer for each hole 
+chamferHolesAngle = millBitPointAngle 
 
 holeDiameter = bedMetricThread + 1 # allowing some wiggle room. ignored when optimised for milling
 throughHoleToolClearance = .5 # how deep we want the tool to go under the holes to ensure clean bottom cut
@@ -185,18 +185,16 @@ def renderBox(name, sizeX, sizeY, sizeZ, cornerX, cornerY, cornerZ):
 
     # Create the box
     box = extrudes.add(extInput)
-    
-    # Get the body created by the extrusion
-    if box.bodies.count > 0:
-        body = box.bodies.item(0)
-        body.name = name
-    else:
-        ui.messageBox('No body was created by the extrusion.')
 
     # Delete the sketch
     boxSketch.deleteMe()
-    return box
 
+    # Set name
+    if box.bodies.count == 0:
+        raise Exception('No body was created by the extrusion.')
+    body = box.bodies.item(0)
+    body.name = name
+    return body
 
 def createSketchWithPoints(name, component, points, plane, mountingHoles, shiftX, shiftY):
     # Create a new sketch on the specified plane
@@ -221,7 +219,7 @@ def getSketchPointCoordinates(sketchPoint):
     y = pointGeometry.y
     return f"({x}, {y})"
 
-def createHolesFromSketch(points, diameter, depth, countersinkDiameter=0, countersinkAngle=0, drillTipAngle=0):
+def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiameter=0, countersinkAngle=0, drillTipAngle=0):
     # Iterate through all sketch points and create holes
     holes = rootComp.features.holeFeatures
 
@@ -239,6 +237,8 @@ def createHolesFromSketch(points, diameter, depth, countersinkDiameter=0, counte
                 holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue((countersinkDiameter - diameter)/2))
             else:
                 holeInput = holes.createSimpleInput(createMMValue(diameter))
+
+            holeInput.participantBodies = [targetBody]
 
             #holeInput.setPositionBySketchPoints(points.sketchPoints)
             holeInput.setPositionBySketchPoint(sketchPoint)
@@ -350,14 +350,14 @@ def run(context):
         holeCollection = createSketchWithPoints("Drilling points", rootComp, spoilboardHoles, xyPlane, False, -centerX, -centerY)
         
         if renderBed:
-            box = renderBox("CNC bed", bedXdimension, bedYdimension, spoilboardSheetThickness, -centerX-spoilboardXShift, -centerY-spoilboardYShift, -2*spoilboardSheetThickness);
-            createHolesFromSketch(mountingHoleCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
-            createHolesFromSketch(holeCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
+            bed = renderBox("CNC bed", bedXdimension, bedYdimension, spoilboardSheetThickness, -centerX-spoilboardXShift, -centerY-spoilboardYShift, -2*spoilboardSheetThickness);
+            createHolesFromSketch(bed,mountingHoleCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
+            createHolesFromSketch(bed,holeCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
 
         if renderSpoilboard:
-            box = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
-            createHolesFromSketch(mountingHoleCollection, holeDiameter, holeMaxDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
-            createHolesFromSketch(holeCollection, holeDiameter, holeMaxDepth, holeDiameter+1, millBitPointAngle, millBitPointAngle)
+            spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion/2 if twoPassMilling else spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
+            createHolesFromSketch(spoilboard,mountingHoleCollection, holeDiameter, holeMaxDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
+            createHolesFromSketch(spoilboard,holeCollection, holeDiameter, holeMaxDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
     
     except:
         if ui:
