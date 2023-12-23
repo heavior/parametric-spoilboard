@@ -326,12 +326,10 @@ def run(context):
     centerX = spoilboardHoles[0][0];
     centerY = spoilboardHoles[0][1];
 
-
-    # TODO: support turnModel 
-    # to turn model - swap X and Y everywhere
-    if twoPassMilling:
+    if twoPassMilling: # just cut the board in half, at this point we don't need original dimensions anymore
         spoilboardSheetXdimenstion = spoilboardSheetXdimenstion/2
-    if turnModel:
+
+    if turnModel:  # to turn model - swap X and Y everywhere
         (centerX, centerY) = (centerY, centerX) 
         (bedXdimension, bedYdimension) = (bedYdimension, bedXdimension)
         (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
