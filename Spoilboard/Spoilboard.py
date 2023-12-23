@@ -25,6 +25,49 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+
+"""
+# Parametric Autodesk Fusion model for generating CNC spoilboards and Sainsmart Genmitsu 3030-Pro cnc bed grid pattern
+
+Readme file with more details available here: https://github.com/heavior/parametric-spoilboard
+
+How to use:
+1) Configure holes and other parameters at the beginning of the file
+2) Run script in Autodesk Fusion 360
+3) Set up manufacturing: drill or bore the hole, then chamfer edges
+4) Use your CNC to prepare the board
+
+Manufacturing:
+
+If you are maximizing spoilboard size, your CNC x/y range is likely not wide enough to make the model in one pass, and you will need two runs.
+
+Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creative): 
+* Set turnModel = true , it will turn the model to make it easier to prepare for milling
+* Set twoPassMilling = true, it will optimise the render for a two-pass milling
+
+* Mark a corner hole (X,Y zero) on the board. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard". This is important to get it right, as any error will double during production
+* If using ensureThroughHoles - use an old spoilboard or some other material between CNC bed and new board
+* Align and secure a 90 degree clamp on the cnc bed. It will serve as a reference for the process
+* Position the board in portrait orientation using clamp, secure it. Check that no mounting hardware intervenes with expected holes or mill head moving
+* Align X,Y zero on that hole mark
+* Set Z zero on the board top (controlled bty zeroZonSpoilboardSurface parameter)
+* In the CAM software make sure that model's zero is preserved (it should be on the first hole)
+* When preparing routes - make sure bit doesn't bump into clamps (obviously)
+
+* Run first pass, release the board
+* Turn the board 180 degrees, and secure it back the same way
+* With 90 degree clamp, you should not need to change zero position
+* Run the pass again
+
+* If you were not using through holes, finish the holes with a drill slightly thicker than the threads on the bed. Try extra hard to be accurate with driles, and go in gently to prevent chipping
+
+
+If you don't have a 90 degree clamp to secure on the board, just make one! :)
+Altenratively, you can mark two opposize corners on the board, and reset zero on those markings between passes. You need to be accurate in your markings. Measure thrice!
+
+"""
+
+
 import adsk.core, adsk.fusion, adsk.cam, traceback
 import math
 
@@ -33,7 +76,7 @@ exceptionUICounter = 0
 maxExceptions = 4 # script will not show more exceptions than this
 
 # 1. General Rendering configuration
-publishToCommunity = False # fast setting to use before export to GrabCad or updating GitHub renders
+publishToCommunity = True # fast setting to use before export to GrabCad or updating GitHub renders
 
 renderBed = True       # Use for debug and visualisation
 renderSpoilboard = True # set to true for machinning, set to false to validate spoilboard design
