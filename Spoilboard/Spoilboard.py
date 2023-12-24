@@ -323,8 +323,8 @@ def run(context):
         holeMaxDepth = stockThickness + (additionalStock if ensureThroughHoles else 0) - cncBedClearance
 
         if ensureThroughHoles and ui and showInfoMessages:
-            # ui.messageBox("Ensure clearance between stock and cnc bed: {} mm".format(additionalStock))
-            ui.messageBox("holeTipDepth:{0:.3f}\nthroughHoleToolClearance:{1:.3f}\ncncBedClearance:{2:.3f}\nthroughHoleStockClearance:{3:.3f}\nadditionalStock:{4:.3f}\nspoilboardSheetThickness:{5:.3f}\nholeMaxDepth:{6:.3f}".format(holeTipDepth,throughHoleToolClearance,cncBedClearance,throughHoleStockClearance,additionalStock,spoilboardSheetThickness,holeMaxDepth))
+            ui.messageBox("Ensure clearance between stock and cnc bed: {} mm".format(additionalStock))
+            #ui.messageBox("holeTipDepth:{0:.3f}\nthroughHoleToolClearance:{1:.3f}\ncncBedClearance:{2:.3f}\nthroughHoleStockClearance:{3:.3f}\nadditionalStock:{4:.3f}\nspoilboardSheetThickness:{5:.3f}\nholeMaxDepth:{6:.3f}".format(holeTipDepth,throughHoleToolClearance,cncBedClearance,throughHoleStockClearance,additionalStock,spoilboardSheetThickness,holeMaxDepth))
 
 
         supportOversizeSpoilboard = False # this checks that Spoilboard sheet is smaller than the board. 
