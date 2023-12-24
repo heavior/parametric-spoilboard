@@ -66,32 +66,39 @@ Altenratively, you can mark two opposize corners on the board, and reset zero on
 
 """
 
-
 import adsk.core, adsk.fusion, adsk.cam, traceback
 import math
 
-
-exceptionUICounter = 0 
 maxExceptions = 4 # script will not show more exceptions than this
+exceptionUICounter = 0 
+cleanModel = True       # script will remove objects and stetches from the project - simplifies script debug
+
 
 # 1. General Rendering configuration
-publishToCommunity = True # fast setting to use before export to GrabCad or updating GitHub renders
+publishToCommunity = True       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
+showInfoMessages = True         # Shows UI pop-ups with information
+renderBed = False               # Use for debug and visualisation
+renderSpoilboard = True         # set to true for machinning, set to false to validate spoilboard design 
 
-renderBed = False       # Use for debug and visualisation
-renderSpoilboard = True # set to true for machinning, set to false to validate spoilboard design
-renderAdditionalStock = False # renderSpoilboard    # render additional stock under spoilboard. Change if need debugging
-# TODO: test addional stock in fusion
+# WARNING: be careful with next two settings
+# Make sure to have some kind of padding or older spoilboard when running job while using these parameters
+renderAdditionalStock = False   # renders spoilboard virtually thicker to render hole tips
+ensureThroughHoles = True       # calulates hole depths to ensure that they will clear the stock sheet       
 
-ensureThroughHoles = not publishToCommunity and True  # WARNING: can mill into CNC bed if not careful
-                            # This will make the model thicker than your stock to ensure that milling goes through thoroughly
-                            # Make sure to have some kind of padding or older spoilboard when running task with this parameter
+turnModel = True        # Turn model 90 degrees for easier alignment. See instruction above to see how it works
+twoPassMilling = True   # render only half of the model (split by X) for two-step marking process    
 
-turnModel =      not publishToCommunity and True    # Turn model 90 degrees for easier alignment. See instruction to see how it works
-twoPassMilling = not publishToCommunity and True    # render only half of the model (split by X) for two-step marking process    
+if publishToCommunity: # override some debug settings when publishing to community
+    showInfoMessages = True
+    renderBed = True
+    renderSpoilboard = True
+    renderAdditionalStock = False
+    ensureThroughHoles = True
+    turnModel = False
+    twoPassMilling = False
+    cleanModel = False
 
-cleanModel =     not publishToCommunity and False    # script will remove objects and stetches from the project - simplifies script debug
-
-# 2. Physical dimensions: (super important)
+#  2. Physical dimensions: (super important)
 # bed dimensions
 bedXdimension = 360
 bedYdimension = 300
@@ -168,11 +175,13 @@ spoilboardCornerY = (bedYdimension - spoilboardSheetYdimenstion)/2
 
 limitMillingDepth = 5 # How deep to mill holes. Ignored when ensureThroughHoles is used
 
-chamferWidth = .5 # chamfer for each hole 
+chamferWidth = 0.5 # chamfer for each hole 
 chamferHolesAngle = millBitPointAngle 
 
-holeDiameter = bedMetricThread + 1 # allowing some wiggle room. ignored when optimised for milling
-throughHoleToolClearance = .5 # how deep we want the tool to go under the holes to ensure clean bottom cut
+holeDiameter = bedMetricThread + 2 # allowing some wiggle room. ignored when optimised for milling
+throughHoleToolClearance = 0.5 # how deep we want the tool to go under the holes to ensure clean bottom cut
+# TODO: think, maybe this is not important for Autodesk fusion
+
 cncBedClearance = 1 # protection parameter - how close do we want to get to the cnc bed to not ruin it
 
 spoilboardEdgeKeepOut = 6 # How close can a hole get to the edge of spoilboard for integrity 
@@ -264,7 +273,7 @@ def getSketchPointCoordinates(sketchPoint):
     y = pointGeometry.y
     return f"({x}, {y})"
 
-def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiameter=0, countersinkAngle=0, drillTipAngle=0):
+def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiameter=0, countersinkAngle=0, millTipAngle=0):
     # Iterate through all sketch points and create holes
     holes = rootComp.features.holeFeatures
 
@@ -289,8 +298,8 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
         holeInput.setPositionBySketchPoints(collection)
         holeInput.setDistanceExtent(createMMValue(depth))
 
-        if drillTipAngle:
-            holeInput.tipAngle = createDegValue(drillTipAngle)        
+        if millTipAngle:
+            holeInput.tipAngle = createDegValue(millTipAngle)        
         hole = holes.add(holeInput)
         return
     except:
@@ -303,83 +312,89 @@ def run(context):
     global holes, bedXdimension, bedYdimension, spoilboardSheetXdimenstion, spoilboardSheetYdimenstion
     # parameter validation and some prep calculations:
     # check parameters
-
-    millingTipDepth = 0 if (millBitPointAngle==0 or millBitPointAngle==180) else millBitThickness/math.tan(millBitPointAngle/2 * math.pi/2)/2
-    throughHoleStockClearance = (throughHoleToolClearance + millingTipDepth) if ensureThroughHoles else 0
-    additionalStock = throughHoleStockClearance + (cncBedClearance if ensureThroughHoles else 0)
-                                                
-    # if additionalStock > 0:
-    #    print ("Ensure clearance between stock and cnc bed: " + str(additionalStock) + " mm")
-
-    spoilboardSheetThickness = stockThickness + (additionalStock if renderAdditionalStock else 0)
-    millingDepth = spoilboardSheetThickness if ensureThroughHoles else limitMillingDepth
-    holeMaxDepth = (spoilboardSheetThickness + additionalStock if ensureThroughHoles else stockThickness) - cncBedClearance 
-
-    supportOversizeSpoilboard = False # this checks that Spoilboard sheet is smaller than the board. 
-                                      # change this value only if you understand what you are doing
-
-    if not supportOversizeSpoilboard:
-        assert bedXdimension >= spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"
-        assert bedYdimension >= spoilboardSheetYdimenstion, "spoilboard is too long for Y axis"
-    if validateCountersunkDepth and screwCountersunkDepth>0:
-        assert ensureThroughHoles or (screwCountersunkDepth <= holeMaxDepth), "max hole depth is not deep enough for countrsunk, min holeMaxDepth: " + str(screwCountersunkDepth)
-        assert screwCountersunkAngle >= 0 and screwCountersunkAngle <= 180, "screwCountersunkAngle is out of range"        
-        if screwCountersunkAngle > 0:
-            requiredCounterSunkDepth = (screwHeadWidth - holeDiameter)/2/ math.tan(screwCountersunkAngle/2 * math.pi/2)/2
-            assert requiredCounterSunkDepth <= screwCountersunkDepth, "countersunk is too shallow for this angle, min screwCountersunkDepth: " + str(requiredCounterSunkDepth)
-
-    # Completing holes array with symmetrical values
-    if boardXsymmetrical:
-        holes += [[bedXdimension - elem[0], elem[1], elem[2]] for elem in holes]
-
-    if boardYsymmetrical:
-        holes += [[elem[0], bedYdimension - elem[1], elem[2]] for elem in holes]
-
-    def remove_duplicate_holes(holes):
-        unique_holes = set()
-        cleaned_holes = []
-
-        for hole in holes:
-            # Convert the list to a tuple for hashing
-            hole_tuple = tuple(hole)
-            if hole_tuple not in unique_holes:
-                unique_holes.add(hole_tuple)
-                cleaned_holes.append(hole)
-
-        return cleaned_holes
-
-    spoilboardXShift = (bedXdimension - spoilboardSheetXdimenstion) / 2 if centerSpoilboard else spoilboardCornerX
-    spoilboardYShift = (bedYdimension - spoilboardSheetYdimenstion) / 2 if centerSpoilboard else spoilboardCornerY
-
-    # here we realign all holes to the spoilboard system of coordinates
-    # TODO: this is not important for autodesk, so it can be optimised to use global coordinates
-    spoilboardHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in remove_duplicate_holes(holes)]
-
-    realKeepout = spoilboardEdgeKeepOut + holeDiameter/2
-
-    def spoilboardHoleCheck(hole):
-        return hole[0] >= realKeepout and hole[1] >= realKeepout and hole[0] <= spoilboardSheetXdimenstion - realKeepout and hole[1] <= spoilboardSheetYdimenstion - realKeepout    
-        
-    spoilboardHoles = [elem for elem in spoilboardHoles if spoilboardHoleCheck(elem)]
-
-    # now we have an array that's ready to use, let's get to rendering
-
-    # getting the coordinates that should be 0,0 - aligning on the first hole
-    centerX = spoilboardHoles[0][0];
-    centerY = spoilboardHoles[0][1];
-
-    if twoPassMilling: # just cut the board in half, at this point we don't need original dimensions anymore
-        spoilboardSheetXdimenstion = spoilboardSheetXdimenstion/2
-
-    if turnModel:  # to turn model - swap X and Y everywhere
-        (centerX, centerY) = (centerY, centerX) 
-        (bedXdimension, bedYdimension) = (bedYdimension, bedXdimension)
-        (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
-        (spoilboardXShift, spoilboardYShift) =  (spoilboardYShift, spoilboardXShift)
-        for hole in spoilboardHoles:
-            (hole[0], hole[1]) = (hole[1], hole[0])
-        
     try:
+        
+        holeTipDepth = 0 if (millBitPointAngle==0 or millBitPointAngle==180) else (holeDiameter/math.tan(millBitPointAngle/2 * math.pi/180)/2)
+        throughHoleStockClearance = (throughHoleToolClearance + holeTipDepth) if ensureThroughHoles else 0
+        additionalStock = throughHoleStockClearance + (cncBedClearance if ensureThroughHoles else 0)
+
+        spoilboardSheetThickness = stockThickness + (additionalStock if renderAdditionalStock else 0)
+        # millingDepth = spoilboardSheetThickness if ensureThroughHoles else limitMillingDepth
+        holeMaxDepth = stockThickness + (additionalStock if ensureThroughHoles else 0) - cncBedClearance
+
+        if ensureThroughHoles and ui and showInfoMessages:
+            # ui.messageBox("Ensure clearance between stock and cnc bed: {} mm".format(additionalStock))
+            ui.messageBox("holeTipDepth:{0:.3f}\nthroughHoleToolClearance:{1:.3f}\ncncBedClearance:{2:.3f}\nthroughHoleStockClearance:{3:.3f}\nadditionalStock:{4:.3f}\nspoilboardSheetThickness:{5:.3f}\nholeMaxDepth:{6:.3f}".format(holeTipDepth,throughHoleToolClearance,cncBedClearance,throughHoleStockClearance,additionalStock,spoilboardSheetThickness,holeMaxDepth))
+
+
+        supportOversizeSpoilboard = False # this checks that Spoilboard sheet is smaller than the board. 
+                                        # change this value only if you understand what you are doing
+
+        if not supportOversizeSpoilboard:
+            assert bedXdimension >= spoilboardSheetXdimenstion, "spoilboard is too wide for X axis"
+            assert bedYdimension >= spoilboardSheetYdimenstion, "spoilboard is too long for Y axis"
+        if validateCountersunkDepth and screwCountersunkDepth>0:
+            assert ensureThroughHoles or (screwCountersunkDepth <= holeMaxDepth), "max hole depth is not deep enough for countrsunk, min holeMaxDepth: " + str(screwCountersunkDepth)
+            assert screwCountersunkAngle >= 0 and screwCountersunkAngle <= 180, "screwCountersunkAngle is out of range"        
+            if screwCountersunkAngle > 0:
+                requiredCounterSunkDepth = (screwHeadWidth - holeDiameter)/2/ math.tan(screwCountersunkAngle/2 * math.pi/180)/2
+                assert requiredCounterSunkDepth <= screwCountersunkDepth, "countersunk is too shallow for this angle, min screwCountersunkDepth: " + str(requiredCounterSunkDepth)
+
+        # Completing holes array with symmetrical values
+        if boardXsymmetrical:
+            holes += [[bedXdimension - elem[0], elem[1], elem[2]] for elem in holes]
+
+        if boardYsymmetrical:
+            holes += [[elem[0], bedYdimension - elem[1], elem[2]] for elem in holes]
+
+        def remove_duplicate_holes(holes):
+            unique_holes = set()
+            cleaned_holes = []
+
+            for hole in holes:
+                # Convert the list to a tuple for hashing
+                hole_tuple = tuple(hole)
+                if hole_tuple not in unique_holes:
+                    unique_holes.add(hole_tuple)
+                    cleaned_holes.append(hole)
+
+            return cleaned_holes
+
+        spoilboardXShift = (bedXdimension - spoilboardSheetXdimenstion) / 2 if centerSpoilboard else spoilboardCornerX
+        spoilboardYShift = (bedYdimension - spoilboardSheetYdimenstion) / 2 if centerSpoilboard else spoilboardCornerY
+
+        # here we realign all holes to the spoilboard system of coordinates
+        # TODO: this is not important for autodesk, so it can be optimised to use global coordinates
+        spoilboardHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in remove_duplicate_holes(holes)]
+
+        realKeepout = spoilboardEdgeKeepOut + holeDiameter/2
+
+        def spoilboardHoleCheck(hole):
+            return hole[0] >= realKeepout and hole[1] >= realKeepout and hole[0] <= spoilboardSheetXdimenstion - realKeepout and hole[1] <= spoilboardSheetYdimenstion - realKeepout    
+            
+        spoilboardHoles = [elem for elem in spoilboardHoles if spoilboardHoleCheck(elem)]
+
+        # now we have an array that's ready to use, let's get to rendering
+
+        # getting the coordinates that should be 0,0 - aligning on the first hole
+        centerX = spoilboardHoles[0][0];
+        centerY = spoilboardHoles[0][1];
+
+        if ui and showInfoMessages:
+            ui.messageBox("Mark the zero on spoilboard - X: {} Y: {}".format(centerX,centerY));
+        # echo(str("Spoilboard corner on the bed - X: ",spoilboardXShift," Y: ",spoilboardYShift));
+
+        if twoPassMilling: # just cut the board in half, at this point we don't need original dimensions anymore
+            spoilboardSheetXdimenstion = spoilboardSheetXdimenstion/2
+
+        if turnModel:  # to turn model - swap X and Y everywhere
+            (centerX, centerY) = (centerY, centerX) 
+            (bedXdimension, bedYdimension) = (bedYdimension, bedXdimension)
+            (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
+            (spoilboardXShift, spoilboardYShift) =  (spoilboardYShift, spoilboardXShift)
+            for hole in spoilboardHoles:
+                (hole[0], hole[1]) = (hole[1], hole[0])
+            
         if cleanModel:
             deleteAllBodiesAndSketches()
 
@@ -394,8 +409,8 @@ def run(context):
 
         if renderSpoilboard:
             spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
-            createHolesFromSketch(spoilboard,mountingHoleCollection, holeDiameter, holeMaxDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
-            createHolesFromSketch(spoilboard,holeCollection, holeDiameter, holeMaxDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
+            createHolesFromSketch(spoilboard,mountingHoleCollection, holeDiameter, holeMaxDepth-holeTipDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
+            createHolesFromSketch(spoilboard,holeCollection, holeDiameter, holeMaxDepth-holeTipDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
