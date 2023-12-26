@@ -79,7 +79,7 @@ exceptionUICounter = 0
 cleanModel = True       # script will remove objects and stetches from the project - simplifies script debug
 
 # 1. General Rendering configuration
-publishToCommunity = False       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
+publishToCommunity = True       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
 showInfoMessages = True         # Shows UI pop-ups with information
 renderBed = False               # Use for debug and visualisation
 renderSpoilboard = True         # set to true for machinning, set to false to validate spoilboard design 
