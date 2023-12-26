@@ -415,10 +415,6 @@ def run(context):
             spoilboardHoles = [elem for elem in spoilboardHoles if elem[0]<=spoilboardSheetXdimenstion/2] # remove points that won't be rendered
             spoilboardSheetXdimenstion = secondPassCenterPoint[0] + realKeepout # cut the board
 
-            if ui and showInfoMessages:
-                ui.messageBox("Mirrored points: {},{} and {},{}".format(centerPoint[0],centerPoint[1],secondPassCenterPoint[0],secondPassCenterPoint[1]));
-
-
         if ui and showInfoMessages:
             ui.messageBox("Mark the zero on spoilboard - X: {} Y: {}".format(centerPoint[0],centerPoint[1]));
 
