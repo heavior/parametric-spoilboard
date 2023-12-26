@@ -44,7 +44,12 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 * Set turnModel = true , it will turn the model to make it easier to prepare for milling
 * Set twoPassMilling = true, it will optimise the render for a two-pass milling
 
-* Mark a corner hole (X,Y zero) on the board. You will find coordinates in the output log (console) during rendering, look for "Mark the zero on spoilboard". This is important to get it right, as any error will double during production
+* Mark a corner hole (X,Y zero) on the board. You will see coordinates on the pop-up message "Mark the zero on spoilboard".
+
+> Note: At first I tried to use corner hole, but after multiple tests I realised that it's very hard to get it right: any mistake doubles and pattern gets too wide or too narrow
+> New approach allows validation of center hole for the second pass. Zero point will be not the corner, but the left most hole in the center row.
+> The pass will not not only drill through holes for the first pass, but also it will do a shallow drilling to mark the next zero point  
+
 * If using ensureThroughHoles - use an old spoilboard or some other material between CNC bed and new board
 * Align and secure a 90 degree clamp on the cnc bed. It will serve as a reference for the process
 * Position the board in portrait orientation using clamp, secure it. Check that no mounting hardware intervenes with expected holes or mill head moving
@@ -55,7 +60,7 @@ Instruction for Genmitsu 3030-Pro (for other CNC mills, read this and get creati
 
 * Run first pass, release the board
 * Turn the board 180 degrees, and secure it back the same way
-* With 90 degree clamp, you should not need to change zero position
+# Tune zero point, it should be close to the original, but might move
 * Run the pass again
 
 * If you were not using through holes, finish the holes with a drill slightly thicker than the threads on the bed. Try extra hard to be accurate with driles, and go in gently to prevent chipping
@@ -73,9 +78,8 @@ maxExceptions = 4 # script will not show more exceptions than this
 exceptionUICounter = 0 
 cleanModel = True       # script will remove objects and stetches from the project - simplifies script debug
 
-
 # 1. General Rendering configuration
-publishToCommunity = True       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
+publishToCommunity = False       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
 showInfoMessages = True         # Shows UI pop-ups with information
 renderBed = False               # Use for debug and visualisation
 renderSpoilboard = True         # set to true for machinning, set to false to validate spoilboard design 
@@ -86,7 +90,10 @@ renderAdditionalStock = False   # renders spoilboard virtually thicker to render
 ensureThroughHoles = True       # calulates hole depths to ensure that they will clear the stock sheet       
 
 turnModel = True        # Turn model 90 degrees for easier alignment. See instruction above to see how it works
-twoPassMilling = True   # render only half of the model (split by X) for two-step marking process    
+twoPassMilling = True   # mill only half of the model (split by X) for two-step marking process    
+                        # this requires the holes to symmetrical
+                        # Two pass milling is currently not supported if you want to shift the spoilboard from the center
+                        # TODO: think how to implement to pass milling for any position of the board
 
 if publishToCommunity: # override some debug settings when publishing to community
     showInfoMessages = True
@@ -106,12 +113,12 @@ bedMetricThread = 6 # mm
 
 # it's ok to use smaller spoilboard sheet, the pattern will be centered
 spoilboardSheetXdimenstion = 355
-spoilboardSheetYdimenstion = 280
+spoilboardSheetYdimenstion = 279
 stockThickness = 5.9 # how thick is the spoilboard material
 
 # Screw that mounts spoilboard to the bed:
 screwCountersunkDepth = 3.5 # Set to 0 if don't want machined countersink or pocket at all
-screwHeadWidth = 12         # screw head diameter. If you want - add some tolerance
+screwHeadWidth = 13.5         # screw head diameter. If you want - add some tolerance to create a bit deeper countersink
 screwCountersunkAngle = 90  # 90 is default for metric screws. set to 0 for straight pocket   
                                 # for best one-tool operation, ensure your working bit has the same tip angle
 
@@ -173,9 +180,10 @@ spoilboardCornerX = (bedXdimension - spoilboardSheetXdimenstion)/2
 spoilboardCornerY = (bedYdimension - spoilboardSheetYdimenstion)/2
 #Spoilboard corner on the bed - X: 2.5 Y: 10
 
-limitMillingDepth = 5 # How deep to mill holes. Ignored when ensureThroughHoles is used
+zeroMarkDepth = .1 # how deep to mill mark for the other center point
+zeroMarkWidth = 4
 
-chamferWidth = 0.5 # chamfer for each hole 
+chamferWidth = 1 # chamfer for each hole 
 chamferHolesAngle = millBitPointAngle 
 
 holeDiameter = bedMetricThread + 2 # allowing some wiggle room. ignored when optimised for milling
@@ -184,7 +192,7 @@ throughHoleToolClearance = 0.5 # how deep we want the tool to go under the holes
 
 cncBedClearance = 1 # protection parameter - how close do we want to get to the cnc bed to not ruin it
 
-spoilboardEdgeKeepOut = 6 # How close can a hole get to the edge of spoilboard for integrity 
+spoilboardEdgeKeepOut = 5 # How close can a hole get to the edge of spoilboard for integrity 
                         # (counterink can overflow into that zone)
 
 
@@ -255,14 +263,13 @@ def createSketchWithPoints(name, component, points, plane, mountingHoles, shiftX
     sketches = component.sketches
     sketch = sketches.add(plane)
     sketch.name = name
-    # collection = adsk.core.ObjectCollection.create()
     # Iterate over the points array and add them to the sketch
     for point in points:
         x, y, mounting = point  # Extract x and y coordinates
         if mounting == mountingHoles:
             sketchPoint = adsk.core.Point3D.create(toCM(x + shiftX), toCM(y + shiftY), 0)  # Create a Fusion 360 point
-            sketch.sketchPoints.add(sketchPoint)  # Add the point to the sketchtoCM(
-            # collection.add(sketchPoint)
+            sketch.sketchPoints.add(sketchPoint)  # Add the point to the sketch
+    
     sketch.sketchPoints.item(0).deleteMe()
     return sketch
 
@@ -280,15 +287,17 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
     #skipFirst = True # hack to avoud first point on the sketch - zero,zero
     #points.sketchPoints.item(0).deleteMe()
     collection = adsk.core.ObjectCollection.create()
+    skipFirst = True
     for sketchPoint in points.sketchPoints:
+        if skipFirst:
+            skipFirst = False
+            continue
         collection.add(sketchPoint)
         
     try:
         if countersinkAngle:
-            #raise Exception("createCountersinkInput {},{},{} ".format(diameter, countersinkDiameter, countersinkAngle))
             holeInput = holes.createCountersinkInput(createMMValue(diameter), createMMValue(countersinkDiameter), createDegValue(countersinkAngle))
         elif countersinkDiameter: # TODO: support counterbore depth
-            #raise Exception("createCounterboreInput {},{},{} ".format(diameter, countersinkDiameter, (countersinkDiameter - diameter)/2))
             holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue((countersinkDiameter - diameter)/2))
         else:
             holeInput = holes.createSimpleInput(createMMValue(diameter))
@@ -319,11 +328,10 @@ def run(context):
         additionalStock = throughHoleStockClearance + (cncBedClearance if ensureThroughHoles else 0)
 
         spoilboardSheetThickness = stockThickness + (additionalStock if renderAdditionalStock else 0)
-        # millingDepth = spoilboardSheetThickness if ensureThroughHoles else limitMillingDepth
         holeMaxDepth = stockThickness + (additionalStock if ensureThroughHoles else 0) - cncBedClearance
 
         if ensureThroughHoles and ui and showInfoMessages:
-            ui.messageBox("Ensure clearance between stock and cnc bed: {} mm".format(additionalStock))
+            ui.messageBox("Ensure clearance between stock and cnc bed: {0:.3f} mm".format(additionalStock))
             #ui.messageBox("holeTipDepth:{0:.3f}\nthroughHoleToolClearance:{1:.3f}\ncncBedClearance:{2:.3f}\nthroughHoleStockClearance:{3:.3f}\nadditionalStock:{4:.3f}\nspoilboardSheetThickness:{5:.3f}\nholeMaxDepth:{6:.3f}".format(holeTipDepth,throughHoleToolClearance,cncBedClearance,throughHoleStockClearance,additionalStock,spoilboardSheetThickness,holeMaxDepth))
 
 
@@ -347,51 +355,78 @@ def run(context):
         if boardYsymmetrical:
             holes += [[elem[0], bedYdimension - elem[1], elem[2]] for elem in holes]
 
+        # remove dublicates that happen if some points are directly in the middle of the board
         def remove_duplicate_holes(holes):
             unique_holes = set()
             cleaned_holes = []
-
             for hole in holes:
                 # Convert the list to a tuple for hashing
                 hole_tuple = tuple(hole)
                 if hole_tuple not in unique_holes:
                     unique_holes.add(hole_tuple)
                     cleaned_holes.append(hole)
-
             return cleaned_holes
+        holes = remove_duplicate_holes(holes)
 
+        # realign all holes to the spoilboard system of coordinates
         spoilboardXShift = (bedXdimension - spoilboardSheetXdimenstion) / 2 if centerSpoilboard else spoilboardCornerX
         spoilboardYShift = (bedYdimension - spoilboardSheetYdimenstion) / 2 if centerSpoilboard else spoilboardCornerY
+        spoilboardHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in holes]
 
-        # here we realign all holes to the spoilboard system of coordinates
-        # TODO: this is not important for autodesk, so it can be optimised to use global coordinates
-        spoilboardHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in remove_duplicate_holes(holes)]
-
+        # remove points that are too close to the edges:
         realKeepout = spoilboardEdgeKeepOut + holeDiameter/2
-
         def spoilboardHoleCheck(hole):
             return hole[0] >= realKeepout and hole[1] >= realKeepout and hole[0] <= spoilboardSheetXdimenstion - realKeepout and hole[1] <= spoilboardSheetYdimenstion - realKeepout    
-            
-        spoilboardHoles = [elem for elem in spoilboardHoles if spoilboardHoleCheck(elem)]
-
-        # now we have an array that's ready to use, let's get to rendering
+        spoilboardHoles = [elem for elem in spoilboardHoles if spoilboardHoleCheck(elem)] 
 
         # getting the coordinates that should be 0,0 - aligning on the first hole
-        centerX = spoilboardHoles[0][0];
-        centerY = spoilboardHoles[0][1];
-
-        if ui and showInfoMessages:
-            ui.messageBox("Mark the zero on spoilboard - X: {} Y: {}".format(centerX,centerY));
-        # echo(str("Spoilboard corner on the bed - X: ",spoilboardXShift," Y: ",spoilboardYShift));
+        centerPoint = spoilboardHoles[0]
 
         if twoPassMilling: # just cut the board in half, at this point we don't need original dimensions anymore
-            spoilboardSheetXdimenstion = spoilboardSheetXdimenstion/2
+            """
+            ok, here is new logic:
+
+            we need to go through all holes, and pull out find shallow marks
+
+            for each hole: if X coordinate <= spoilboardSheetXdimenstion/2 - keep it to drill AND remember max X coordinate
+            Then find 
+
+            """
+            centerPoint = [0,spoilboardSheetYdimenstion, False]
+            for hole in spoilboardHoles:
+                if hole[0] > spoilboardSheetXdimenstion/2: # wrong side of the board, not milling
+                    continue 
+                if hole[0] < centerPoint[0]:  # not the closest to the middle
+                    continue 
+                if hole[1] > centerPoint[1]:  # not the closest to the edge
+                    continue 
+                centerPoint = hole
+
+            secondPassCenterPoint = [spoilboardSheetXdimenstion, 0, False]
+            for hole in spoilboardHoles:
+                if hole[0] <= spoilboardSheetXdimenstion/2: # wrong side - milling, but not centering here
+                    continue
+                if hole[0] > secondPassCenterPoint[0]:  # not the closest to the middle
+                    continue 
+                if hole[1] < secondPassCenterPoint[1]:  # not the closest to the edge
+                    continue 
+                secondPassCenterPoint = hole
+
+            spoilboardHoles = [elem for elem in spoilboardHoles if elem[0]<=spoilboardSheetXdimenstion/2] # remove points that won't be rendered
+            spoilboardSheetXdimenstion = secondPassCenterPoint[0] + realKeepout # cut the board
+
+            if ui and showInfoMessages:
+                ui.messageBox("Mirrored points: {},{} and {},{}".format(centerPoint[0],centerPoint[1],secondPassCenterPoint[0],secondPassCenterPoint[1]));
+
+
+        if ui and showInfoMessages:
+            ui.messageBox("Mark the zero on spoilboard - X: {} Y: {}".format(centerPoint[0],centerPoint[1]));
 
         if turnModel:  # to turn model - swap X and Y everywhere
-            (centerX, centerY) = (centerY, centerX) 
             (bedXdimension, bedYdimension) = (bedYdimension, bedXdimension)
             (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
             (spoilboardXShift, spoilboardYShift) =  (spoilboardYShift, spoilboardXShift)
+            (secondPassCenterPoint[0],secondPassCenterPoint[1]) = (secondPassCenterPoint[1],secondPassCenterPoint[0])
             for hole in spoilboardHoles:
                 (hole[0], hole[1]) = (hole[1], hole[0])
             
@@ -399,18 +434,23 @@ def run(context):
             deleteAllBodiesAndSketches()
 
         xyPlane = rootComp.xYConstructionPlane
-        mountingHoleCollection = createSketchWithPoints("Mounting points", rootComp, spoilboardHoles, xyPlane, True,  -centerX, -centerY)
-        holeCollection = createSketchWithPoints("Drilling points", rootComp, spoilboardHoles, xyPlane, False, -centerX, -centerY)
-        
+        mountingHoleCollection = createSketchWithPoints("Mounting points", rootComp, spoilboardHoles, xyPlane, True,  -centerPoint[0], -centerPoint[1])
+        holeCollection = createSketchWithPoints("Drilling points", rootComp, spoilboardHoles, xyPlane, False, -centerPoint[0], -centerPoint[1])
+            
         if renderBed:
-            bed = renderBox("CNC bed", bedXdimension, bedYdimension, spoilboardSheetThickness, -centerX-spoilboardXShift, -centerY-spoilboardYShift, -2*spoilboardSheetThickness);
+            bed = renderBox("CNC bed", bedXdimension, bedYdimension, spoilboardSheetThickness, -centerPoint[0]-spoilboardXShift, -centerPoint[1]-spoilboardYShift, -2*spoilboardSheetThickness);
             createHolesFromSketch(bed,mountingHoleCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
             createHolesFromSketch(bed,holeCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
 
         if renderSpoilboard:
-            spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerX, -centerY, -spoilboardSheetThickness);
-            createHolesFromSketch(spoilboard,mountingHoleCollection, holeDiameter, holeMaxDepth-holeTipDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
-            createHolesFromSketch(spoilboard,holeCollection, holeDiameter, holeMaxDepth-holeTipDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
+            spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerPoint[0], -centerPoint[1], -spoilboardSheetThickness);
+            createHolesFromSketch(spoilboard, mountingHoleCollection, holeDiameter, holeMaxDepth-holeTipDepth, screwHeadWidth, screwCountersunkAngle, millBitPointAngle)
+            createHolesFromSketch(spoilboard, holeCollection, holeDiameter, holeMaxDepth-holeTipDepth, holeDiameter + 2*chamferWidth, chamferHolesAngle, millBitPointAngle)
+        
+        if renderSpoilboard and twoPassMilling:
+            marksCollection = createSketchWithPoints("Second pass zero point {},{},{}".format(secondPassCenterPoint[0],secondPassCenterPoint[1],secondPassCenterPoint[2]), rootComp, [secondPassCenterPoint,centerPoint], xyPlane, secondPassCenterPoint[2], -centerPoint[0], -centerPoint[1])
+            createHolesFromSketch(spoilboard, marksCollection, zeroMarkWidth, zeroMarkDepth, 0, 0, millBitPointAngle)
+
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
