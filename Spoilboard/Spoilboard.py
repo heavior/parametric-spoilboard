@@ -81,8 +81,9 @@ cleanModel = True       # script will remove objects and stetches from the proje
 # 1. General Rendering configuration
 publishToCommunity = True       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
 showInfoMessages = True         # Shows UI pop-ups with information
-renderBed = False               # Use for debug and visualisation
+renderBed = True               # Use for debug and visualisation
 renderSpoilboard = True         # set to true for machinning, set to false to validate spoilboard design 
+centerSpoilboard = False   # set to false if you want to move spoilboard around the board
 
 # WARNING: be careful with next two settings
 # Make sure to have some kind of padding or older spoilboard when running job while using these parameters
@@ -90,7 +91,7 @@ renderAdditionalStock = False   # renders spoilboard virtually thicker to render
 ensureThroughHoles = True       # calulates hole depths to ensure that they will clear the stock sheet       
 
 turnModel = True        # Turn model 90 degrees for easier alignment. See instruction above to see how it works
-twoPassMilling = True   # mill only half of the model (split by X) for two-step marking process    
+twoPassMilling = False   # mill only half of the model (split by X) for two-step marking process    
                         # this requires the holes to symmetrical
                         # Two pass milling is currently not supported if you want to shift the spoilboard from the center
                         # TODO: think how to implement to pass milling for any position of the board
@@ -104,6 +105,7 @@ if publishToCommunity: # override some debug settings when publishing to communi
     turnModel = False
     twoPassMilling = False
     cleanModel = False
+    centerSpoilboard = True   # set to false if you want to move spoilboard around the board
 
 #  2. Physical dimensions: (super important)
 # bed dimensions
@@ -112,8 +114,17 @@ bedYdimension = 300
 bedMetricThread = 6 # mm
 
 # it's ok to use smaller spoilboard sheet, the pattern will be centered
-spoilboardSheetXdimenstion = 355
-spoilboardSheetYdimenstion = 279
+#spoilboardSheetXdimenstion = 355
+#spoilboardSheetYdimenstion = 279
+
+spoilboardSheetXdimenstion = 152 # + (360-152)
+spoilboardSheetYdimenstion = 254 #+ (300-254)
+
+spoilboardCornerX = 25 # used if not centerSpoilboard, will set to center if not defined
+spoilboardCornerY = (bedYdimension-spoilboardSheetYdimenstion) # used if not centerSpoilboard, will set to center if not defined
+
+
+
 stockThickness = 5.9 # how thick is the spoilboard material
 
 # Screw that mounts spoilboard to the bed:
@@ -174,10 +185,13 @@ holes = [
 ]
 # 4. Positioning and clearances (likely don't need to change)
 
-centerSpoilboard = True   # set to false if you want to move spoilboard around the board
-# if centerSpoilboard=false, change next two variables as needed:
-spoilboardCornerX = (bedXdimension - spoilboardSheetXdimenstion)/2     
-spoilboardCornerY = (bedYdimension - spoilboardSheetYdimenstion)/2
+if centerSpoilboard or not ('spoilboardCornerX' in vars() or 'spoilboardCornerX' in globals()):
+    spoilboardCornerX = (bedXdimension - spoilboardSheetXdimenstion)/2     
+
+if centerSpoilboard or not ('spoilboardCornerY' in vars() or 'spoilboardCornerY' in globals()):
+    spoilboardCornerY = (bedYdimension - spoilboardSheetYdimenstion)/2
+
+    
 #Spoilboard corner on the bed - X: 2.5 Y: 10
 
 zeroMarkDepth = .1 # how deep to mill mark for the other center point
@@ -287,7 +301,7 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
     #skipFirst = True # hack to avoud first point on the sketch - zero,zero
     #points.sketchPoints.item(0).deleteMe()
     collection = adsk.core.ObjectCollection.create()
-    skipFirst = True
+    skipFirst = False
     for sketchPoint in points.sketchPoints:
         if skipFirst:
             skipFirst = False
@@ -309,7 +323,7 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
 
         if millTipAngle:
             holeInput.tipAngle = createDegValue(millTipAngle)        
-        hole = holes.add(holeInput)
+        holes.add(holeInput)
         return
     except:
         global exceptionUICounter
@@ -371,13 +385,15 @@ def run(context):
         # realign all holes to the spoilboard system of coordinates
         spoilboardXShift = (bedXdimension - spoilboardSheetXdimenstion) / 2 if centerSpoilboard else spoilboardCornerX
         spoilboardYShift = (bedYdimension - spoilboardSheetYdimenstion) / 2 if centerSpoilboard else spoilboardCornerY
-        spoilboardHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in holes]
+        baseHoles = [[elem[0] - spoilboardXShift, elem[1] - spoilboardYShift, elem[2]] for elem in holes]
 
         # remove points that are too close to the edges:
         realKeepout = spoilboardEdgeKeepOut + holeDiameter/2
         def spoilboardHoleCheck(hole):
             return hole[0] >= realKeepout and hole[1] >= realKeepout and hole[0] <= spoilboardSheetXdimenstion - realKeepout and hole[1] <= spoilboardSheetYdimenstion - realKeepout    
-        spoilboardHoles = [elem for elem in spoilboardHoles if spoilboardHoleCheck(elem)] 
+        
+        spoilboardHoles = [[elem[0],elem[1],elem[2]] for elem in baseHoles if spoilboardHoleCheck(elem)] 
+
 
         # getting the coordinates that should be 0,0 - aligning on the first hole
         centerPoint = spoilboardHoles[0]
@@ -414,6 +430,8 @@ def run(context):
 
             spoilboardHoles = [elem for elem in spoilboardHoles if elem[0]<=spoilboardSheetXdimenstion/2] # remove points that won't be rendered
             spoilboardSheetXdimenstion = secondPassCenterPoint[0] + realKeepout # cut the board
+        #else:
+
 
         if ui and showInfoMessages:
             ui.messageBox("Mark the zero on spoilboard - X: {} Y: {}".format(centerPoint[0],centerPoint[1]));
@@ -422,8 +440,12 @@ def run(context):
             (bedXdimension, bedYdimension) = (bedYdimension, bedXdimension)
             (spoilboardSheetXdimenstion, spoilboardSheetYdimenstion) = (spoilboardSheetYdimenstion, spoilboardSheetXdimenstion)
             (spoilboardXShift, spoilboardYShift) =  (spoilboardYShift, spoilboardXShift)
-            (secondPassCenterPoint[0],secondPassCenterPoint[1]) = (secondPassCenterPoint[1],secondPassCenterPoint[0])
+            if twoPassMilling:
+                (secondPassCenterPoint[0],secondPassCenterPoint[1]) = (secondPassCenterPoint[1],secondPassCenterPoint[0])
             for hole in spoilboardHoles:
+                (hole[0], hole[1]) = (hole[1], hole[0])
+
+            for hole in baseHoles:
                 (hole[0], hole[1]) = (hole[1], hole[0])
             
         if cleanModel:
@@ -432,11 +454,14 @@ def run(context):
         xyPlane = rootComp.xYConstructionPlane
         mountingHoleCollection = createSketchWithPoints("Mounting points", rootComp, spoilboardHoles, xyPlane, True,  -centerPoint[0], -centerPoint[1])
         holeCollection = createSketchWithPoints("Drilling points", rootComp, spoilboardHoles, xyPlane, False, -centerPoint[0], -centerPoint[1])
+
+        baseHoleCollection = createSketchWithPoints("Flatbed points", rootComp, baseHoles, xyPlane, False, -centerPoint[0], -centerPoint[1]) 
+        baseHoleCollectionCorners = createSketchWithPoints("Flatbed points", rootComp, baseHoles, xyPlane, True, -centerPoint[0], -centerPoint[1]) 
             
         if renderBed:
             bed = renderBox("CNC bed", bedXdimension, bedYdimension, spoilboardSheetThickness, -centerPoint[0]-spoilboardXShift, -centerPoint[1]-spoilboardYShift, -2*spoilboardSheetThickness);
-            createHolesFromSketch(bed,mountingHoleCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
-            createHolesFromSketch(bed,holeCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
+            createHolesFromSketch(bed, baseHoleCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
+            createHolesFromSketch(bed, baseHoleCollectionCorners, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
 
         if renderSpoilboard:
             spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerPoint[0], -centerPoint[1], -spoilboardSheetThickness);
