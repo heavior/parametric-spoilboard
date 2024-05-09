@@ -96,6 +96,9 @@ twoPassMilling = False   # mill only half of the model (split by X) for two-step
                         # Two pass milling is currently not supported if you want to shift the spoilboard from the center
                         # TODO: think how to implement to pass milling for any position of the board
 
+
+markCornersAsMountingPoints = True     # This will automatically label the corner holes as mounting points
+
 if publishToCommunity: # override some debug settings when publishing to community
     showInfoMessages = True
     renderBed = True
@@ -106,6 +109,7 @@ if publishToCommunity: # override some debug settings when publishing to communi
     twoPassMilling = False
     cleanModel = False
     centerSpoilboard = True   # set to false if you want to move spoilboard around the board
+    markCornersAsMountingPoints = False
 
 #  2. Physical dimensions: (super important)
 # bed dimensions
@@ -307,16 +311,21 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
     # Iterate through all sketch points and create holes
     holes = rootComp.features.holeFeatures
 
-    #skipFirst = True # hack to avoud first point on the sketch - zero,zero
+    #skipFirst = True 
     #points.sketchPoints.item(0).deleteMe()
     collection = adsk.core.ObjectCollection.create()
-    skipFirst = False
+    skipFirst = True # hack to avoud first point on the sketch - zero,zero
+    hasPoints = False
     for sketchPoint in points.sketchPoints:
         if skipFirst:
             skipFirst = False
             continue
         collection.add(sketchPoint)
+        hasPoints = True
         
+    if not hasPoints:   # no actual points were added, return
+        return
+    
     try:
         if countersinkAngle:
             holeInput = holes.createCountersinkInput(createMMValue(diameter), createMMValue(countersinkDiameter), createDegValue(countersinkAngle))
@@ -417,7 +426,7 @@ def run(context):
             Then find 
 
             """
-            centerPoint = [0,spoilboardSheetYdimenstion, False]
+            centerPoint = [0, spoilboardSheetYdimenstion, False]
             for hole in spoilboardHoles:
                 if hole[0] > spoilboardSheetXdimenstion/2: # wrong side of the board, not milling
                     continue 
@@ -441,6 +450,28 @@ def run(context):
             spoilboardSheetXdimenstion = secondPassCenterPoint[0] + realKeepout # cut the board
         #else:
 
+        if markCornersAsMountingPoints:
+            def findCorner(top, left, holes):
+                cornerY = spoilboardSheetYdimenstion if top else 0
+                cornerX = spoilboardSheetXdimenstion if left else 0
+                magicX = 1 if left else -1
+                magicY = 1 if top else -1
+                corner = [cornerX,cornerY,False]
+
+                for hole in holes:
+                    if hole[1]*magicY > corner[1]*magicY: 
+                        continue 
+                    if hole[0]*magicX > corner[0]*magicX: 
+                        continue 
+                    corner = hole
+                return corner
+            
+            # iterate through spoilboardHoles, find right-most and leftmost
+            findCorner(True,True,spoilboardHoles)[2] = True
+            findCorner(True,False,spoilboardHoles)[2] = True
+            findCorner(False,True,spoilboardHoles)[2] = True
+            findCorner(False,False,spoilboardHoles)[2] = True
+            
 
         if ui and showInfoMessages:
             ui.messageBox("Mark the zero on spoilboard - X: {} Y: {}".format(centerPoint[0],centerPoint[1]));
