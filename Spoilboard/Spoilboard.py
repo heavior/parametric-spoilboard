@@ -129,10 +129,18 @@ stockThickness = 25.4 # how thick is the spoilboard material
 bedThickness = 8
 
 # Screw that mounts spoilboard to the bed:
-screwCountersunkDepth = 3.5 # Set to 0 if don't want machined countersink or pocket at all
-screwHeadWidth = 13.5         # screw head diameter. If you want - add some tolerance to create a bit deeper countersink
+# setup for countersunk M6:
 screwCountersunkAngle = 90  # 90 is default for metric screws. set to 0 for straight pocket   
                                 # for best one-tool operation, ensure your working bit has the same tip angle
+screwCountersunkDepth = 3.5 # Set to 0 if don't want machined countersink or pocket at all
+screwHeadWidth = 13.5         # screw head diameter. If you want - add some tolerance to create a bit deeper countersink
+
+
+# setup for Socket Head:
+screwCountersunkAngle = 0 # if we have flat head, we need to sink it deeper
+screwHeadWidth = 20 # wide enough to use a washer and have some room for alignment
+screwCountersunkDepth = stockThickness - 6 # sinking screw if thickness allows, leaving only 6 mm for support
+
 
 validateCountersunkDepth = True # this checks that there is enough depth for the countersink
 # change this value only if you understand what you are doing, the countersunk will probably render not the way you expect
@@ -313,7 +321,7 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
         if countersinkAngle:
             holeInput = holes.createCountersinkInput(createMMValue(diameter), createMMValue(countersinkDiameter), createDegValue(countersinkAngle))
         elif countersinkDiameter: # TODO: support counterbore depth
-            holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue((countersinkDiameter - diameter)/2))
+            holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue(screwCountersunkDepth))
         else:
             holeInput = holes.createSimpleInput(createMMValue(diameter))
 
