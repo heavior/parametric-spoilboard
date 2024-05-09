@@ -125,7 +125,8 @@ spoilboardCornerY = (bedYdimension-spoilboardSheetYdimenstion) # used if not cen
 
 
 
-stockThickness = 5.9 # how thick is the spoilboard material
+stockThickness = 25.4 # how thick is the spoilboard material
+bedThickness = 8
 
 # Screw that mounts spoilboard to the bed:
 screwCountersunkDepth = 3.5 # Set to 0 if don't want machined countersink or pocket at all
@@ -459,9 +460,9 @@ def run(context):
         baseHoleCollectionCorners = createSketchWithPoints("Flatbed points", rootComp, baseHoles, xyPlane, True, -centerPoint[0], -centerPoint[1]) 
             
         if renderBed:
-            bed = renderBox("CNC bed", bedXdimension, bedYdimension, spoilboardSheetThickness, -centerPoint[0]-spoilboardXShift, -centerPoint[1]-spoilboardYShift, -2*spoilboardSheetThickness);
-            createHolesFromSketch(bed, baseHoleCollection, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
-            createHolesFromSketch(bed, baseHoleCollectionCorners, bedMetricThread, 2*spoilboardSheetThickness, 0, 0, 0)
+            bed = renderBox("CNC bed", bedXdimension, bedYdimension, bedThickness, -centerPoint[0]-spoilboardXShift, -centerPoint[1]-spoilboardYShift, -bedThickness-spoilboardSheetThickness);
+            createHolesFromSketch(bed, baseHoleCollection, bedMetricThread, 2*(bedThickness+spoilboardSheetThickness), 0, 0, 0)
+            createHolesFromSketch(bed, baseHoleCollectionCorners, bedMetricThread, 2*(bedThickness+spoilboardSheetThickness), 0, 0, 0)
 
         if renderSpoilboard:
             spoilboard = renderBox("Spoilboard", spoilboardSheetXdimenstion, spoilboardSheetYdimenstion, spoilboardSheetThickness, -centerPoint[0], -centerPoint[1], -spoilboardSheetThickness);
