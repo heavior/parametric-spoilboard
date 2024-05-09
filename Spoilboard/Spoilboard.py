@@ -81,7 +81,7 @@ cleanModel = True       # script will remove objects and stetches from the proje
 # 1. General Rendering configuration
 publishToCommunity = True       # fast setting to use before export to GrabCad or updating GitHub renders. Set to false when you play with parameters
 showInfoMessages = True         # Shows UI pop-ups with information
-renderBed = True               # Use for debug and visualisation
+renderBed = False               # Use for debug and visualisation
 renderSpoilboard = True         # set to true for machinning, set to false to validate spoilboard design 
 centerSpoilboard = False   # set to false if you want to move spoilboard around the board
 
@@ -142,7 +142,7 @@ screwHeadWidth = 13.5         # screw head diameter. If you want - add some tole
 
 # setup for Socket Head:
 screwCountersunkAngle = 0 # if we have flat head, we need to sink it deeper
-screwHeadWidth = 20 # wide enough to use a washer and have some room for alignment
+screwHeadWidth = 13 # wide enough to use a washer and have some room for alignment
 screwCountersunkDepth = stockThickness - 6 # sinking screw if thickness allows, leaving only 6 mm for support
 
 
@@ -210,7 +210,11 @@ if centerSpoilboard or not ('spoilboardCornerY' in vars() or 'spoilboardCornerY'
 zeroMarkDepth = .1 # how deep to mill mark for the other center point
 zeroMarkWidth = 4
 
-chamferWidth = 1 # chamfer for each hole 
+chamferWidth = 0 # chamfer for each hole. 
+# Keep in mind, that if you are going to face the spoilboard after installing, some of the chamfer will be faced down.
+# So if you want chamfer, keep it wider than the depth of your face operation
+# Alternatively - set to 0 and configure in chamfer operaion
+
 chamferHolesAngle = millBitPointAngle 
 
 holeDiameter = bedMetricThread + 2 # allowing some wiggle room. ignored when optimised for milling
@@ -327,9 +331,9 @@ def createHolesFromSketch(targetBody, points, diameter, depth, countersinkDiamet
         return
     
     try:
-        if countersinkAngle:
+        if countersinkAngle and countersinkDiameter > diameter:
             holeInput = holes.createCountersinkInput(createMMValue(diameter), createMMValue(countersinkDiameter), createDegValue(countersinkAngle))
-        elif countersinkDiameter: # TODO: support counterbore depth
+        elif countersinkDiameter > diameter: # TODO: support counterbore depth
             holeInput = holes.createCounterboreInput(createMMValue(diameter), createMMValue(countersinkDiameter), createMMValue(screwCountersunkDepth))
         else:
             holeInput = holes.createSimpleInput(createMMValue(diameter))
